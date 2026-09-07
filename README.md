@@ -147,20 +147,89 @@ owns the LEGO palette and the depth model.
 
 ## Running it
 
+BrickLab runs on your own machine. You start it, then open <http://localhost:3000>.
+
+### Is there a live site?
+
+The previous team's frontend is still deployed at
+<https://main.d2hnowa3ob8fvm.amplifyapp.com/>. It is useful as a visual reference for
+the inherited UI, and nothing more:
+
+- **It is not our deployment.** It lives in their AWS account. We cannot deploy to it,
+  and it disappears when that account lapses.
+- **It is frontend-only.** Amplify hosts no Python backend, so every call to the ML
+  service returns `503 ML service unavailable`. The 2D mosaic works there only because
+  it runs entirely in the browser.
+- **It cannot give us the Clerk keys** we need locally — Amplify holds those
+  server-side.
+
+### ⚠️ Read this first — the app will not start yet
+
+Both methods below currently fail at sign-in, before anything renders:
+
+- `docker compose up` exits immediately — `compose.yaml` requires a `.env.local` file
+  that does not exist in this repo.
+- `npm run dev` fails too — Clerk needs a publishable key that only exists inside
+  `compose.yaml`.
+
+The previous team's `.env.local` was gitignored and held keys to **their** Clerk
+account, so there is no teammate to ask. Pick one of these first:
+
+| Fix | Effort | Good for |
+|---|---|---|
+| **Our own Clerk dev instance** — free tier at clerk.com, copy both keys into `frontend/.env.local` | ~15 min, once | Anyone who needs real sign-in |
+| **A dev auth bypass** — an env flag that empties `isProtectedRoute` in `frontend/middleware.ts` | ~10 lines | Day-to-day work; **first task of Cycle 1** |
+
+`frontend/.env.local` (gitignored — never commit it):
+
+```
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+CLERK_SECRET_KEY=sk_test_...
+```
+
+### Method 1 — everything (frontend + ML)
+
+**Needs:** Docker Desktop.
+
 ```bash
 docker compose up --build
 ```
 
-Then open <http://localhost:3000>. First build is slow — the FastAPI image downloads and bakes in the
-depth model (~100 MB).
+Starts five services together:
 
-Frontend only, for UI work:
-
-```bash
-cd frontend && npm install && npm run dev
+```
+frontend   :3000   the web app you open in a browser
+fastapi    :8000   the Python ML API
+worker             background jobs (Celery)
+postgres   :5432   job records
+redis      :6379   the job queue
 ```
 
-> Needs a `.env.local` with `CLERK_SECRET_KEY` — ask a teammate.
+Use this whenever you change anything in `ml/`. The first build takes roughly 10–20
+minutes — it downloads the depth model (~100 MB) and bakes it into the image. Later
+builds reuse that layer and take seconds.
+
+```bash
+docker compose logs -f fastapi   # watch the ML service
+docker compose down              # stop everything
+```
+
+### Method 2 — web app only
+
+**Needs:** Node.js 20.9+. No Docker.
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Starts in seconds and hot-reloads as you edit. Use this for pages, styling, and
+components.
+
+**What will not work:** anything that calls the ML service — background removal, 3D
+generation, the depth-based viewer. Those need Method 1 running, or at minimum the
+FastAPI container on port 8000.
 
 ## Documentation
 
