@@ -174,7 +174,6 @@ def main() -> None:
 
     # Use the existing GLB builder from ptb_ml
     sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-    sys.path.insert(0, str(Path(__file__).parent.parent / "vendor"))
     from ptb_ml.instructions.glb_builder import build_glb
     from ptb_ml.instructions.settings import InstructionsSettings
 

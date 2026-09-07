@@ -124,9 +124,11 @@ Excluded `ml/vendor/DSINE/` (184 MB) from the import.
 **Why:** its Imperial College London license states *"You may not use the Software for commercial
 purposes."* It is used only by `ptb_ml/priors/`, part of the dormant photogrammetry path.
 
-**Consequence:** `ptb_ml/priors/` cannot run. Acceptable — that path is dormant and could not ship
-commercially anyway. `ml/vendor/` is kept as an empty directory so `pyproject.toml`'s
-`packages.find(where=["src","vendor"])` still resolves.
+DSINE was the only vendored dependency, so `ml/vendor/` is deleted entirely and `vendor` dropped from
+`pyproject.toml`'s `packages.find`, `Dockerfile.pipeline`, and `scripts/generate_demo.py`.
+
+**Consequence:** `ptb_ml/priors/` cannot run — it imports DSINE. Acceptable: that path is dormant and could
+not ship commercially anyway.
 
 ---
 

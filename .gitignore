@@ -38,12 +38,12 @@ tmp/ptb_jobs/
 *.pem
 !.env.example
 
-# ─── Excluded from the import — see docs/PREVIOUS_TEAM.md ──────────────────
-# DSINE is licensed NON-COMMERCIAL (Imperial College London). Do not re-add.
-ml/vendor/DSINE/
-# Generated output of ml/scripts/generate_demo.py (24 MB); regenerate locally.
+# ─── Never commit these ────────────────────────────────────────────────────
+# DSINE is licensed non-commercial; it must not ship in this product.
+ml/vendor/
+# Build output of ml/scripts/generate_demo.py (24 MB).
 ml/demo.glb
-# Large unused test fixture.
+# Large video fixtures.
 ml/test/test_files/*.mp4
 
 # ─── Editor / OS ───────────────────────────────────────────────────────────

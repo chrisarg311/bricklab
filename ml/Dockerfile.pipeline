@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-ENV PYTHONPATH=/app/src:/app/vendor
+ENV PYTHONPATH=/app/src
 
 # Torch CPU (cached layer — rebuild only if version changes)
 RUN pip install --no-cache-dir \
@@ -41,7 +41,6 @@ p = pipeline('depth-estimation', model='depth-anything/Depth-Anything-V2-Small-h
 print('Model cached.')"
 
 COPY src/ ./src/
-COPY vendor/ ./vendor/
 COPY app.py .
 
 EXPOSE 8000

@@ -109,9 +109,14 @@ output can therefore disagree on color. Reconciling them is a Cycle 3 task.
 | `ml/test/test_files/*.mp4` | 2.9 MB | Referenced by no test — `test_full.py` synthesizes its own video with ffmpeg. |
 | `.gitmodules` | — | Pointed at the removed DSINE submodule. |
 
-**Consequence:** `ml/src/ptb_ml/priors/` cannot run without DSINE. That is intentional — it belongs to the
-photogrammetry path, which is dormant *and* could not be used commercially anyway. `ml/vendor/` is kept as
-an empty directory so `pyproject.toml`'s `packages.find(where=["src","vendor"])` still resolves.
+**About `vendor/`:** in Python and JS convention a `vendor/` directory holds *third-party* code copied into
+the repo instead of being installed from a package manager. It was never the previous team's own work, and
+it is not what we reuse from them — that is `ml/src/ptb_ml/`, `ml/mosaic_engine.py`, and `frontend/`. Since
+DSINE was the only thing vendored, we deleted `ml/vendor/` outright and dropped `vendor` from
+`pyproject.toml`'s `packages.find`, from `Dockerfile.pipeline`, and from `scripts/generate_demo.py`.
+
+**Consequence:** `ml/src/ptb_ml/priors/` cannot run — it imports DSINE. That is intentional: it belongs to
+the photogrammetry path, which is dormant *and* could not ship commercially anyway.
 
 ---
 
