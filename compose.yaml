@@ -1,0 +1,93 @@
+services:
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.frontend
+      args:
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_bWVhc3VyZWQtY29sbGllLTc3LmNsZXJrLmFjY291bnRzLmRldiQ
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.local    # CLERK_SECRET_KEY — gitignored, share via password manager
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      FASTAPI_INTERNAL_URL: http://fastapi:8000
+      NEXT_PUBLIC_API_URL: http://localhost:3000
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/pictobrick
+      REDIS_URL: redis://redis:6379/0
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_bWVhc3VyZWQtY29sbGllLTc3LmNsZXJrLmFjY291bnRzLmRldiQ
+    depends_on:
+      - postgres
+      - redis
+      - fastapi
+
+  postgres:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: pictobrick
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  fastapi:
+    build:
+      context: ./ml
+      dockerfile: Dockerfile.fastapi
+    ports:
+      - "8000:8000"
+    volumes:
+      - local_storage:/app/storage   # shared with worker; unused when S3_BUCKET is set
+      - ~/.aws:/root/.aws:ro          # optional AWS credentials for S3 access, read-only
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/pictobrick
+      REDIS_URL: redis://redis:6379/0
+      LOCAL_STORAGE_DIR: /app/storage
+      S3_BUCKET: ${S3_BUCKET:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_PROFILE: pictobrickwebapp
+      AWS_ENDPOINT_URL: ${AWS_ENDPOINT_URL:-}
+      # Clerk JWT verification (Phase 2)
+      CLERK_JWKS_URL: ${CLERK_JWKS_URL:-https://measured-collie-77.clerk.accounts.dev/.well-known/jwks.json}
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_bWVhc3VyZWQtY29sbGllLTc3LmNsZXJrLmFjY291bnRzLmRldiQ
+    depends_on:
+      - postgres
+      - redis
+
+  worker:
+    build:
+      context: ./ml
+      dockerfile: Dockerfile.fastapi   # reuses the same image for Phase 1
+    command: >
+      celery -A tasks worker
+      --loglevel=info
+      --queues=default
+      --concurrency=1
+    volumes:
+      - local_storage:/app/storage
+      - ~/.aws:/root/.aws:ro          # optional AWS credentials for S3 access, read-only
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/pictobrick
+      REDIS_URL: redis://redis:6379/0
+      LOCAL_STORAGE_DIR: /app/storage
+      # S3 — leave blank to use the local_storage volume fallback
+      S3_BUCKET: ${S3_BUCKET:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_PROFILE: pictobrickwebapp
+      AWS_ENDPOINT_URL: ${AWS_ENDPOINT_URL:-}
+    depends_on:
+      - postgres
+      - redis
+
+volumes:
+  postgres_data:
+  local_storage:    # shared between fastapi and worker when S3 is not configured

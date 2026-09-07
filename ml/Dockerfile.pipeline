@@ -1,0 +1,49 @@
+# Full 3-D reconstruction pipeline — large image (~6 GB), slow first build.
+# Build separately when you need the /api/jobs/3d endpoint to actually run:
+#
+#   docker build -f Dockerfile.pipeline -t ptb-pipeline .
+#   docker run -p 8000:8000 ptb-pipeline
+#
+# For daily dev the lighter Dockerfile.fastapi is used instead.
+
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    colmap \
+    libgl1 \
+    libglib2.0-0 \
+    libgomp1 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+ENV PYTHONPATH=/app/src:/app/vendor
+
+# Torch CPU (cached layer — rebuild only if version changes)
+RUN pip install --no-cache-dir \
+    "torch==2.2.2" "torchvision==0.17.2" \
+    --extra-index-url https://download.pytorch.org/whl/cpu
+
+# Pipeline deps
+RUN pip install --no-cache-dir \
+    "numpy<2" pillow \
+    "transformers>=4.40,<5.0" "accelerate>=0.30" \
+    "open3d>=0.19.0" "pygltflib>=1.16.5" "geffnet>=1.0.2" \
+    "opencv-python-headless>=4.8" "imagehash>=4.3" \
+    "pydantic>=2,<3" "pillow-heif>=1.2.1" pandas \
+    "fastapi>=0.110" "uvicorn[standard]>=0.29" "python-multipart"
+
+RUN python -c "\
+from transformers import pipeline; \
+p = pipeline('depth-estimation', model='depth-anything/Depth-Anything-V2-Small-hf', device=-1); \
+print('Model cached.')"
+
+COPY src/ ./src/
+COPY vendor/ ./vendor/
+COPY app.py .
+
+EXPOSE 8000
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", \
+     "--timeout-keep-alive", "300"]
