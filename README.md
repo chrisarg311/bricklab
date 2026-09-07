@@ -18,11 +18,11 @@ a step-by-step build manual, and a parts list you can actually buy.
 
 ```mermaid
 flowchart LR
-    IMG["📷 your photo"] --> SUB["1 · Cut out the subject<br/><i>backgroundremover / U²-Net</i>"]
-    SUB --> DIM["2a · Measure it<br/><i>width × height × depth in studs</i>"]
-    DIM --> REL["2b · Give it depth<br/><i>depth model sets how far each<br/>column sticks out</i>"]
-    REL --> BRK["3a · Turn voxels into real bricks<br/><i>greedy merge into 2×4s, 1×2s…</i>"]
-    BRK --> INS["3b · Colors + instructions<br/><i>snap to LEGO palette, build steps</i>"]
+    IMG["📷 your photo"] --> SUB["1 · Cut out the subject<br/>backgroundremover / U²-Net"]
+    SUB --> DIM["2a · Measure it<br/>width × height × depth in studs"]
+    DIM --> REL["2b · Give it depth<br/>depth model sets how far each<br/>column sticks out"]
+    REL --> BRK["3a · Turn voxels into real bricks<br/>greedy merge into 2×4s, 1×2s…"]
+    BRK --> INS["3b · Colors + instructions<br/>snap to LEGO palette, build steps"]
     INS --> OUT["🧱 3D model · manual · parts list"]
 ```
 
@@ -57,15 +57,93 @@ flowchart LR
 
 ```
 bricklab/
-├── frontend/          Next.js 16 web app (upload, 3D viewers, build guide)
-├── ml/                Python FastAPI service + the ML pipeline
-│   ├── app.py           HTTP endpoints
-│   ├── tasks.py         Celery background jobs
-│   ├── mosaic_engine.py LEGO palette + color quantization
-│   └── src/ptb_ml/      pipeline modules (brickification, instructions, …)
-├── docs/              architecture notes, decisions, licensing
-└── compose.yaml       docker compose: frontend + fastapi + worker + postgres + redis
+├── frontend/                    Next.js 16 · React 19 · Tailwind · Three.js
+│   ├── app/
+│   │   ├── page.tsx               landing
+│   │   ├── create/                2D Mosaic Studio  ← the "Pixel/Mosaic" style
+│   │   ├── create-3d/             upload → poll → 3D  ← Cycle 1 & 2 UI lands here
+│   │   ├── build/[id]/            mosaic result: parts list, build guide
+│   │   ├── model/[jobId]/         GLB viewer  ← Cycle 3 adds tabs
+│   │   ├── my-builds/ gallery/ pricing/ faq/
+│   │   └── api/                   proxy routes — the browser never calls FastAPI directly
+│   ├── components/                GlbViewer · MosaicViewer3D · Navbar · ui/
+│   ├── lib/                       mosaic.ts (palette) · depth.ts · api.ts · builds.ts
+│   ├── middleware.ts              Clerk auth gate ⚠️ blocks /create-3d without keys
+│   └── public/                    landing images, demo GLTF
+│
+├── ml/                          Python · FastAPI · Celery
+│   ├── app.py                     HTTP endpoints
+│   ├── tasks.py                   Celery background jobs
+│   ├── mosaic_engine.py           LEGO palette · dithering · depth-aware quantize
+│   ├── main.py                    CLI entrypoint
+│   ├── db.py · storage.py · auth.py
+│   └── src/ptb_ml/
+│       ├── brickification/        ✅ voxels → real bricks + BOM     REUSED
+│       ├── instructions/          ✅ GLB + build steps              REUSED
+│       ├── voxelization/          ◐  LEGO grid fitting (settings reused, loader bypassed)
+│       ├── preprocess/            💤 frame extraction, masking
+│       ├── sfm/ · sfm_qc/         💤 COLMAP structure-from-motion
+│       ├── priors/                💤 needs DSINE — cannot run, see docs/THIRD_PARTY.md
+│       ├── shape_completion/      💤 Open3D TSDF fusion
+│       └── pipeline/              💤 orchestrates the dormant chain
+│
+├── docs/                        PREVIOUS_TEAM · DECISIONS · THIRD_PARTY
+├── compose.yaml                 frontend + fastapi + worker + postgres + redis
+└── LICENSE                      placeholder — see docs/THIRD_PARTY.md
 ```
+
+✅ actively reused · ◐ partly reused · 💤 dormant (the previous team's photogrammetry
+path — kept in-tree as the future "walk around your house" feature, not used by our cycles)
+
+## How the folders connect
+
+One upload, traced through every file it touches. The browser never calls FastAPI
+directly — it always goes through a Next.js proxy route.
+
+```mermaid
+flowchart TB
+    subgraph B["🌐 browser"]
+        P1["app/create-3d/page.tsx"]
+        P2["app/model/[jobId]/page.tsx"]
+    end
+    subgraph N["▲ Next.js server — frontend/"]
+        L["lib/api.ts<br/>typed client"]
+        R1["app/api/ml/subject/route.ts<br/>Cycle 1 — new"]
+        R2["app/api/ml/jobs/route.ts"]
+        R3["app/api/ml/jobs/[jobId]/glb/route.ts"]
+        MW["middleware.ts<br/>Clerk gate"]
+    end
+    subgraph F["🐍 FastAPI — ml/"]
+        A["app.py"]
+        T["tasks.py<br/>Celery"]
+    end
+    subgraph M["📦 pipeline — ml/src/ptb_ml/"]
+        S["subject/<br/>Cycle 1 — new"]
+        D["dimensions/ + relief/<br/>Cycle 2 — new"]
+        BR["brickification/<br/>reused"]
+        IN["instructions/<br/>reused"]
+    end
+    ME["ml/mosaic_engine.py<br/>palette + depth"]
+
+    MW -.guards.-> P1
+    P1 --> L
+    L --> R1 & R2
+    R1 --> A
+    R2 --> A
+    A --> T
+    T --> S --> D --> BR --> IN
+    D -.reuses.-> ME
+    BR -.reuses.-> ME
+    IN --> G[("model.glb<br/>steps.json<br/>bom.json")]
+    P2 --> R3 --> A
+    A --> G
+```
+
+**Reading it:** `create-3d` calls a typed function in `lib/api.ts`, which hits a Next
+proxy route, which forwards to `ml/app.py`. Long work is handed to a Celery task that
+walks the pipeline modules left to right. The two new Cycle 1–2 modules feed the two
+modules we inherited unchanged. `mosaic_engine.py` is shared by both new stages — it
+owns the LEGO palette and the depth model.
 
 ## Running it
 
