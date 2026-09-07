@@ -43,7 +43,7 @@ function mergeBuilds(remote: BuildSummary[], local: StoredBuild[]): StoredBuild[
     parts: [],                                  // not loaded for list view
   }));
 
-  // Local-only builds (not yet synced / old pre-Phase-2 builds)
+  // Builds that exist only in localStorage, with no server-side counterpart
   const localOnly = local.filter((b) => !remoteIds.has(b.id));
 
   const merged = [...fromRemote, ...localOnly];

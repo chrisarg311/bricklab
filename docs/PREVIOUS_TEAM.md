@@ -93,7 +93,7 @@ output can therefore disagree on color. Reconciling them is a Cycle 3 task.
 |---|---|---|---|
 | 1 | Committed merge-conflict marker — Docker rejects it, so `compose up --build` failed outright | `ml/Dockerfile.fastapi:23` | ✅ **Fixed** in `c74d39d` |
 | 2 | `POST /api/jobs/3d` does not exist; the 3D Builder UI polls nothing | `ml/app.py` | Open — Cycle 2 |
-| 3 | Brick **stability checks commented out** — `_check_stagger()` and the support-ratio test in `_can_plce()`. The sponsor memo promises "optimizes structure for stability"; it is not implemented | `ml/src/ptb_ml/brickification/engine.py` | Open — Cycle 3 |
+| 3 | **Stability is not implemented.** The sponsor memo promises "optimizes structure for stability." `_can_plce()` never checks support from the layer below, and `_check_stagger()` only rejects a brick whose footprint *exactly* matches the one beneath it. `min_support_ratio` and `min_stagger_overlap` are validated but unused. They arrived as commented-out blocks, since deleted, with the docstrings corrected to match real behavior — the originals are in the import commit `4ce3d19` | `ml/src/ptb_ml/brickification/engine.py` | Open — Cycle 3 |
 | 4 | Palette mismatch — 22 colors vs 18 (see §4) | `mosaic_engine.py` vs `brickification/colors.py` | Open — Cycle 3 |
 | 5 | No LICENSE file anywhere in the original repo | — | See `docs/THIRD_PARTY.md` |
 | 6 | Only `preprocess` has tests; everything SfM-and-later is untested | `ml/test/` | Ongoing |

@@ -41,11 +41,9 @@ def parse_args() -> argparse.Namespace:
                    help="Path to COLMAP executable")
     p.add_argument("--camera-model", default="SIMPLE_RADIAL",
                    help="COLMAP camera model")
-    
-    # Relax Quality Filters (TEST)
+
     p.add_argument("--relax-quality-filter", action="store_true",
                help="Disable quality filtering for challenging or pre-curated datasets")
-    # TODO: Debug Mode for storing information
 
     # Inputs
     p.add_argument("inputs", nargs="+", help="Input files: images and/or videos")

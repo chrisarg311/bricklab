@@ -1,16 +1,12 @@
 """
-FastAPI server for PictoBrick ML endpoints.
+FastAPI server for the ML endpoints.
 
-Phase 0 additions:
-  POST /api/mosaic          — synchronous depth-aware colour quantisation
-
-Phase 1 additions:
-  POST /api/jobs            — create an async mosaic job (Celery)
-  GET  /api/jobs/{job_id}   — poll job status
+  POST /api/depth-grid           — per-cell brick heights for the 3-D viewer
+  POST /api/mosaic               — synchronous depth-aware colour quantisation
+  POST /api/jobs                 — create an async mosaic job (Celery)
+  GET  /api/jobs/{job_id}        — poll job status
   GET  /api/jobs/{job_id}/result — fetch completed result
-
-Existing:
-  POST /api/depth-grid      — kept for the 3-D bas-relief viewer
+  GET  /api/builds               — list the signed-in user's builds
   GET  /health
 """
 from __future__ import annotations
@@ -65,7 +61,7 @@ def _depth_pipe():
 
 
 # ---------------------------------------------------------------------------
-# Existing: /api/depth-grid  (unchanged, used by the 3-D viewer)
+# POST /api/depth-grid
 # ---------------------------------------------------------------------------
 
 class DepthGridReq(BaseModel):
@@ -111,7 +107,7 @@ def depth_grid(req: DepthGridReq) -> DepthGridResp:
 
 
 # ---------------------------------------------------------------------------
-# Phase 0: POST /api/mosaic  (synchronous, ~2-4 s)
+# POST /api/mosaic  (synchronous, ~2-4 s)
 # ---------------------------------------------------------------------------
 
 @app.post("/api/mosaic")
@@ -145,7 +141,7 @@ async def mosaic(
 
 
 # ---------------------------------------------------------------------------
-# Phase 1: POST /api/jobs  — create async job
+# POST /api/jobs  — create async job
 # ---------------------------------------------------------------------------
 
 @app.post("/api/jobs", status_code=202)
@@ -189,7 +185,7 @@ async def create_job(
 
 
 # ---------------------------------------------------------------------------
-# Phase 1: GET /api/jobs/{job_id}  — poll status
+# GET /api/jobs/{job_id}  — poll status
 # ---------------------------------------------------------------------------
 
 @app.get("/api/jobs/{job_id}")
@@ -212,7 +208,7 @@ def get_job_status(job_id: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Phase 1: GET /api/jobs/{job_id}/result  — fetch completed result
+# GET /api/jobs/{job_id}/result  — fetch completed result
 # ---------------------------------------------------------------------------
 
 @app.get("/api/jobs/{job_id}/result")
@@ -232,7 +228,7 @@ def get_job_result(job_id: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Phase 2: builds endpoints (auth required)
+# builds endpoints (auth required)
 # ---------------------------------------------------------------------------
 
 @app.get("/api/builds")

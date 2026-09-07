@@ -18,6 +18,7 @@ class BrickificationSettings:
         )
     )
 
+    # Validated but not yet enforced by engine.py.
     min_stagger_overlap: int= 1
     min_support_ratio: float= 0.5
 

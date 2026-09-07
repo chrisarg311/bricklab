@@ -1,12 +1,11 @@
 """
-Clerk JWT verification for PictoBrick FastAPI endpoints.
+Clerk JWT verification for the FastAPI endpoints.
 
 Clerk issues RS256-signed JWTs.  We verify them locally against the public
 keys published at the Clerk JWKS endpoint — no round-trip to Clerk per request.
 
 JWKS are fetched once and cached for the lifetime of the process.  Clerk rotates
-keys infrequently; for production you'd add a TTL and re-fetch on 401, but this
-is sufficient for Phase 2.
+keys infrequently; a production deployment should add a TTL and re-fetch on 401.
 
 Required env var (one of):
   CLERK_JWKS_URL  — full URL e.g. https://<domain>/.well-known/jwks.json

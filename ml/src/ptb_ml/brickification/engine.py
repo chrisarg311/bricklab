@@ -30,11 +30,11 @@ def _can_plce(
     settings: BrickificationSettings,
 ) -> bool:
     """
-    Check if a brick can be placed at (x, y, z) with shape (w, h, d).
-    Rules: 
-        - All voxels must be occupied
-        - No voxels already covered by placed bricks
-        - Sufficient support from layer below(except ground)
+    Check whether a brick fits at (x, y, z) with shape (w, h, d).
+
+    Every voxel in the region must be occupied and not already claimed by
+    another brick. Support from the layer below is NOT checked --
+    settings.min_support_ratio is currently unenforced.
     """
 
     x, y, z, w, h, d = brick
@@ -49,12 +49,6 @@ def _can_plce(
     
     if placed[x:x+w, y:y+h, z:z+d].any():
         return False
-    
-    """if y > 0:
-        support_region= placed[x:x+w, y-1:y, z:z+d]
-        support_ratio= support_region.mean()
-        if support_ratio < settings.min_support_ratio:
-            return False"""
 
     return True
 
@@ -64,8 +58,10 @@ def _check_stagger(
         placed_bricks: list[Brick],
         settings: BrickificationSettings,
 ) -> bool:
-   """Ensure brick is staggered relative to the bricks directly below
-   Returns True if stagger is satisfied or no bricks below
+   """Reject a brick that exactly duplicates the footprint of the brick below it.
+
+   Only an exact (x, z, w, d) match is rejected; partially overlapping seams
+   are allowed through, so this is a weaker check than true stagger.
    """
    if y == 0:
        return True
@@ -74,17 +70,9 @@ def _check_stagger(
        # check if there is a brick directly below
        if b.y + b.h != y:
            continue
-       
-       """x_overlap = min(x + w, b.x + b.w) - max(x, b.x)
-       z_overlap = min(z + d, b.z + b.d) - max(z, b.z)
 
-       if x_overlap <=0 or z_overlap <= 0:
-           continue"""
-       
        if x == b.x and z == b.z and w == b.w and d == b.d:
             return False
-       
-
 
    return True
 

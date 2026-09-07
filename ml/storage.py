@@ -81,7 +81,7 @@ def presign_url(key: str, expires_in: int = 3600) -> str:
 
     In S3 mode: a real pre-signed URL valid for *expires_in* seconds.
     In local mode: a path under /api/storage/ that the Next.js proxy can serve
-    (not yet implemented — returns a placeholder for Phase 1).
+    (not yet implemented — returns a placeholder).
     """
     if _using_s3:
         return _s3_client().generate_presigned_url(

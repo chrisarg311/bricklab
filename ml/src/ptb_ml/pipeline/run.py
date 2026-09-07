@@ -185,10 +185,11 @@ def run_pipeline(req: PipelineReq) -> PipelineResult:
 
     _report("sfm_qc", 42)
 
-    #Priors
+    # Priors.
+    # The blue (fallback) route is unimplemented, so every job runs the orange
+    # (full) route regardless of what sfm_qc scored.
     priors_result:PriorsResult | None=None
-    if True: #sfm_qc_result.route == "orange": # temporary force routing to orange \
-        #for testing until blue implemented TODO
+    if True:
         priors_result = run_priors(
             PriorsReq(
                 job_id=req.job_id,
@@ -199,8 +200,6 @@ def run_pipeline(req: PipelineReq) -> PipelineResult:
     )
     if priors_result is not None and priors_result.ok:
         _report("priors", 58)
-    """sfm_qc_result.route == "orange" and""" # dont check for orange pipeline
-    # until all blue is added TODO
     shape_result: ShapeCompletionResult | None = None
     if  priors_result is not None and priors_result.ok:
         shape_result = run_shape_completion(

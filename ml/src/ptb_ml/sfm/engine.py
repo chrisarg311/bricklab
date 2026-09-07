@@ -14,25 +14,6 @@ from .models import SfmReq, SfmResult
 from .settings import SfmSettings
 
 
-"""def _prepare_workspace(output_dir: Path) -> tuple[Path, Path, Path]:
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    database_path = output_dir / "database.db"
-    sparse_dir = output_dir / "sparse"
-    logs_dir = output_dir / "logs"
-
-    # MVP behavior: fresh run each time.
-    if database_path.exists():
-        database_path.unlink()
-
-    if sparse_dir.exists():
-        shutil.rmtree(sparse_dir)
-    sparse_dir.mkdir(parents=True, exist_ok=True)
-
-    logs_dir.mkdir(parents=True, exist_ok=True) 
-
-    return database_path, sparse_dir, logs_dir"""
-
 def _resolve_workspace(req: SfmReq) -> tuple[Path, Path, Path]:
     database_path = req.database_path or (req.output_dir / "database.db")
     sparse_dir = req.sparse_dir or (req.output_dir / "sparse")

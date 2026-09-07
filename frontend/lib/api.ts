@@ -1,5 +1,5 @@
 /**
- * Typed API client for PictoBrick ML endpoints.
+ * Typed API client for the ML endpoints.
  * All functions call Next.js proxy routes (never FastAPI directly from the browser).
  */
 
@@ -37,7 +37,7 @@ export type JobResult = {
 };
 
 // ---------------------------------------------------------------------------
-// Phase 0: synchronous mosaic (used by studio preview → final generate)
+// Synchronous mosaic (used by studio preview → final generate)
 // ---------------------------------------------------------------------------
 
 /**
@@ -62,7 +62,7 @@ export async function createMosaicSync(
 }
 
 // ---------------------------------------------------------------------------
-// Phase 1: async job lifecycle
+// Async job lifecycle
 // ---------------------------------------------------------------------------
 
 /**
@@ -115,7 +115,7 @@ export async function getJobResult(jobId: string): Promise<JobResult> {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 2: builds (server-persisted, auth-gated)
+// Builds (server-persisted, auth-gated)
 // ---------------------------------------------------------------------------
 
 /**

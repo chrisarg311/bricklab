@@ -1,8 +1,8 @@
 """
-Database helpers for PictoBrick job tracking.
+Database helpers for job tracking.
 Uses synchronous SQLAlchemy (compatible with Celery workers).
-Schema is created at startup via CREATE TABLE IF NOT EXISTS — no migration
-tooling needed for Phase 1.  Alembic can be layered on top later.
+Schema is created at startup via CREATE TABLE IF NOT EXISTS; there is no
+migration tooling.
 """
 from __future__ import annotations
 

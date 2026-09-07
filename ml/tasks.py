@@ -1,14 +1,14 @@
 """
-Celery worker tasks for PictoBrick.
+Celery worker tasks.
 
-Phase 1 implements a single task: run_mosaic_job
+run_mosaic_job:
   - Downloads the uploaded image from storage
   - Runs depth-aware colour quantisation (mosaic_engine)
   - Generates a thumbnail
   - Uploads the thumbnail to storage
   - Writes the result JSON to the jobs table
 
-Celery is configured with Redis as both broker and result backend.
+Redis is both the broker and the result backend.
 """
 from __future__ import annotations
 
