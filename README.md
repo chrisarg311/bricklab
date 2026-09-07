@@ -147,67 +147,41 @@ owns the LEGO palette and the depth model.
 
 ## Running it
 
-BrickLab runs on your own machine. You start it, then open <http://localhost:3000>.
+BrickLab is not deployed. It runs on your machine at <http://localhost:3000>.
 
-### Is there a live site?
+### Setup — required once
 
-The previous team's frontend is still deployed at
-<https://main.d2hnowa3ob8fvm.amplifyapp.com/>. It is useful as a visual reference for
-the inherited UI, and nothing more:
+Sign-in is handled by Clerk. The sponsor has provided credentials; **nobody has
+signed in and generated the keys yet**, so the app will not start until someone does.
 
-- **It is not our deployment.** It lives in their AWS account. We cannot deploy to it,
-  and it disappears when that account lapses.
-- **It is frontend-only.** Amplify hosts no Python backend, so every call to the ML
-  service returns `503 ML service unavailable`. The 2D mosaic works there only because
-  it runs entirely in the browser.
-- **It cannot give us the Clerk keys** we need locally — Amplify holds those
-  server-side.
-
-### ⚠️ Read this first — the app will not start yet
-
-Both methods below currently fail at sign-in, before anything renders:
-
-- `docker compose up` exits immediately — `compose.yaml` requires a `.env.local` file
-  that does not exist in this repo.
-- `npm run dev` fails too — Clerk needs a publishable key that only exists inside
-  `compose.yaml`.
-
-The previous team's `.env.local` was gitignored and held keys to **their** Clerk
-account, so there is no teammate to ask. Pick one of these first:
-
-| Fix | Effort | Good for |
-|---|---|---|
-| **Our own Clerk dev instance** — free tier at clerk.com, copy both keys into `frontend/.env.local` | ~15 min, once | Anyone who needs real sign-in |
-| **A dev auth bypass** — an env flag that empties `isProtectedRoute` in `frontend/middleware.ts` | ~10 lines | Day-to-day work; **first task of Cycle 1** |
-
-`frontend/.env.local` (gitignored — never commit it):
+Create `frontend/.env.local` (gitignored — never commit it):
 
 ```
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
 CLERK_SECRET_KEY=sk_test_...
 ```
 
+Until that file exists, `docker compose up` exits immediately (`compose.yaml`
+requires it) and `npm run dev` fails on the missing publishable key.
+
 ### Method 1 — everything (frontend + ML)
 
-**Needs:** Docker Desktop.
+**Needs:** Docker Desktop. Use whenever you change `ml/`.
 
 ```bash
 docker compose up --build
 ```
 
-Starts five services together:
-
 ```
-frontend   :3000   the web app you open in a browser
-fastapi    :8000   the Python ML API
+frontend   :3000   web app
+fastapi    :8000   Python ML API
 worker             background jobs (Celery)
 postgres   :5432   job records
-redis      :6379   the job queue
+redis      :6379   job queue
 ```
 
-Use this whenever you change anything in `ml/`. The first build takes roughly 10–20
-minutes — it downloads the depth model (~100 MB) and bakes it into the image. Later
-builds reuse that layer and take seconds.
+First build takes roughly 10–20 minutes — it bakes the depth model (~100 MB) into
+the image. Later builds reuse that layer.
 
 ```bash
 docker compose logs -f fastapi   # watch the ML service
@@ -216,20 +190,22 @@ docker compose down              # stop everything
 
 ### Method 2 — web app only
 
-**Needs:** Node.js 20.9+. No Docker.
+**Needs:** Node.js 20.9+. Use for pages, styling, and components.
 
 ```bash
-cd frontend
-npm install
-npm run dev
+cd frontend && npm install && npm run dev
 ```
 
-Starts in seconds and hot-reloads as you edit. Use this for pages, styling, and
-components.
+Starts in seconds with hot reload. **Anything calling the ML service will not work** —
+background removal, 3D generation, the depth viewer. Those need Method 1, or at
+minimum the FastAPI container on port 8000.
 
-**What will not work:** anything that calls the ML service — background removal, 3D
-generation, the depth-based viewer. Those need Method 1 running, or at minimum the
-FastAPI container on port 8000.
+### Previous team's deployment
+
+<https://main.d2hnowa3ob8fvm.amplifyapp.com/> — a visual reference for the inherited
+UI, not a dev environment. It is their AWS account and frontend-only: Amplify hosts no
+Python backend, so ML routes return `503`. The 2D mosaic works there because it runs
+entirely in the browser.
 
 ## Documentation
 
