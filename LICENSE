@@ -1,0 +1,26 @@
+Copyright (c) 2026 Purpix Media, LLC and the COMP 4710 Senior Design Team #16
+(An Dinh, Christos Argyropoulos, Carlos Oceguera), Auburn University.
+
+All rights reserved.
+
+------------------------------------------------------------------------------
+PLACEHOLDER -- TERMS NOT YET FINALIZED
+
+This is a deliberately conservative placeholder. No license to use, copy,
+modify, or distribute this software is granted at this time.
+
+The project sponsor should confirm the intended license and the copyright
+ownership, which may be governed by the Auburn University intellectual property
+policy and/or the senior design sponsorship agreement. Tracked as open decision
+O2 in docs/DECISIONS.md.
+
+Rationale for defaulting to all-rights-reserved: a proprietary license can be
+relaxed later, but software cannot be un-open-sourced once released.
+------------------------------------------------------------------------------
+
+This repository incorporates third-party open-source software under separate
+license terms, and builds on prior work by the preceding senior design team.
+See docs/THIRD_PARTY.md for the full inventory and obligations.
+
+LEGO(R) is a trademark of the LEGO Group, which does not sponsor, authorize, or
+endorse this project.

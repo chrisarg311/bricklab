@@ -1,0 +1,53 @@
+# ─── Node / Next.js ────────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+/coverage
+.vercel
+
+# ─── Python ────────────────────────────────────────────────────────────────
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+ml/tmp/
+ml/jobs/
+tmp/ptb_jobs/
+
+# ─── Secrets ───────────────────────────────────────────────────────────────
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+!.env.example
+
+# ─── Never commit these ────────────────────────────────────────────────────
+# DSINE is licensed non-commercial; it must not ship in this product.
+ml/vendor/
+# Build output of ml/scripts/generate_demo.py (24 MB).
+ml/demo.glb
+# Large video fixtures.
+ml/test/test_files/*.mp4
+
+# ─── Editor / OS ───────────────────────────────────────────────────────────
+.DS_Store
+.claude/
+.idea/
+.vscode/

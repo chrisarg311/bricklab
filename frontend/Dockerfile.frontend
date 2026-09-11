@@ -1,0 +1,44 @@
+# frontend/Dockerfile.frontend
+ARG NODE_VERSION=22-alpine
+
+FROM node:${NODE_VERSION} AS base
+WORKDIR /app
+
+# ---- deps ----
+FROM base AS deps
+RUN --mount=type=bind,source=package.json,target=package.json \
+    --mount=type=bind,source=package-lock.json,target=package-lock.json \
+    --mount=type=cache,target=/root/.npm \
+    npm ci
+
+# ---- build ----
+FROM base AS build
+# NEXT_PUBLIC_* vars must exist as ENV during `next build` so Next.js can
+# inline them into the client JS bundle. Populated from compose build.args.
+ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+# Tell next.config.ts to emit standalone output (required by the final stage).
+# AWS Amplify builds leave this unset so Next.js emits its default output.
+ENV BUILD_STANDALONE=true
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN npm run build
+
+# ---- final ----
+FROM node:${NODE_VERSION} AS final
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+# Create app dir owned by node user
+RUN mkdir -p /app && chown -R node:node /app
+USER node
+
+COPY --from=build --chown=node:node /app/.next/standalone ./
+COPY --from=build --chown=node:node /app/.next/static ./.next/static
+COPY --from=build --chown=node:node /app/public ./public
+
+EXPOSE 3000
+CMD ["node", "server.js"]
