@@ -33,6 +33,10 @@ services:
       POSTGRES_DB: pictobrick
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      retries: 10
 
   redis:
     image: redis:7-alpine
@@ -60,8 +64,10 @@ services:
       CLERK_JWKS_URL: ${CLERK_JWKS_URL:-https://measured-collie-77.clerk.accounts.dev/.well-known/jwks.json}
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_bWVhc3VyZWQtY29sbGllLTc3LmNsZXJrLmFjY291bnRzLmRldiQ
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   worker:
     build:
@@ -85,8 +91,10 @@ services:
       AWS_PROFILE: pictobrickwebapp
       AWS_ENDPOINT_URL: ${AWS_ENDPOINT_URL:-}
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
 volumes:
   postgres_data:
