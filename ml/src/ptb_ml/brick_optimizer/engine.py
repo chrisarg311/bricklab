@@ -368,15 +368,18 @@ def run_brick_optimization(
         base_size = next((n for n in settings.base_plate_sizes if n >= need), need)
         ox, oz = (base_size - X) // 2, (base_size - Z) // 2
         pieces = [(x + ox, y + 1, z + oz, w, d, h, c) for x, y, z, w, d, h, c in pieces]
-        pieces.insert(0, (0, 0, 0, base_size, base_size, 1,
-                          settings.colors.index(settings.base_plate_color)))
+        # The base plate's color is outside the kit colors (bricks only)
+        pieces.insert(0, (0, 0, 0, base_size, base_size, 1, len(palette)))
 
-    rgb = palette[[p[6] for p in pieces]] if pieces else np.zeros((0, 3), np.int32)
+    by_name = {name: (r, g, b) for name, r, g, b in LEGO_COLORS}
+    out_palette = np.vstack([palette, [by_name[settings.base_plate_color]]])
+    out_names = tuple(settings.colors) + (settings.base_plate_color,)
+    rgb = out_palette[[p[6] for p in pieces]] if pieces else np.zeros((0, 3), np.int32)
     brick_array = np.array([p[:6] for p in pieces], dtype=np.int32).reshape(-1, 6)
     brick_array = np.hstack([brick_array, rgb.astype(np.int32)])
     np.savez_compressed(bricks_path, bricks=brick_array)
 
-    bom = Counter((_part_name(*p[3:6]), settings.colors[p[6]]) for p in pieces)
+    bom = Counter((_part_name(*p[3:6]), out_names[p[6]]) for p in pieces)
     bom_path.write_text(json.dumps({
         "job_id": req.job_id,
         "total_bricks": len(pieces),

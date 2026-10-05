@@ -1,6 +1,8 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 
+from ..brickification.colors import LEGO_COLORS
+
 ## The 20-part catalog: (w, d, h) with h in plates (3 = brick, 1 = plate).
 ## Rotations are the same part and are added by the engine.
 CATALOG_20: tuple[tuple[int, int, int], ...] = (
@@ -67,7 +69,8 @@ class BrickOptSettings:
     ## exact footprint size
     base_plate: bool= True
     base_plate_sizes: tuple[int, ...]= (16, 32, 48)
-    base_plate_color: str= "Black"
+    ## Not limited to the kit colors: those apply to bricks only
+    base_plate_color: str= "Green"
 
     time_limit_s: float= 2.0
     workers: int= 8
@@ -81,8 +84,8 @@ class BrickOptSettings:
             raise ValueError("part heights must be 1 (plate) or 3 (brick)")
         if not self.colors:
             raise ValueError("colors must not be empty")
-        if self.base_plate and self.base_plate_color not in self.colors:
-            raise ValueError("base_plate_color must be one of colors")
+        if self.base_plate and self.base_plate_color not in {c[0] for c in LEGO_COLORS}:
+            raise ValueError(f"unknown base_plate_color: {self.base_plate_color}")
         if self.color_mapping not in ("rank", "nearest"):
             raise ValueError("color_mapping must be 'rank' or 'nearest'")
         if self.time_limit_s <= 0:

@@ -100,6 +100,9 @@ def test_base_plate_under_centered_model(tmp_path):
     assert b[0, :6].tolist() == [0, 0, 0, 16, 16, 1]
     # Model lifted one plate and centered on the 16x16 plate
     assert b[1, :6].tolist() == [7, 1, 6, 2, 4, 3]
+    # Green base plate; the bricks stay in the kit colors
+    assert tuple(b[0, 6:9]) == (75, 151, 74)
+    assert tuple(b[1, 6:9]) == WHITE
 
 
 def test_rank_colors_keeps_a_dark_model_apart(tmp_path):
