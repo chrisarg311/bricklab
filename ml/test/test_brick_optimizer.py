@@ -10,6 +10,8 @@ WHITE, RED = (255, 255, 255), (196, 40, 28)
 
 
 def _run(tmp_path: Path, occ, colors=None, solid=None, **kw):
+    kw.setdefault("base_plate", False)
+    kw.setdefault("color_smoothing", 0)
     colors = np.full(occ.shape + (3,), WHITE, np.uint8) if colors is None else colors
     extra = {} if solid is None else {"solid": solid}
     np.savez(tmp_path / "occ.npz", occupancy=occ, colors=colors, **extra)
@@ -90,3 +92,46 @@ def test_unsupportable_piece_is_dropped(tmp_path):
     res, b = _run(tmp_path, occ, solid=occ.copy())                  # air between
     assert res.num_dropped > 0
     assert (b[:, 1] == 0).all()
+
+
+def test_base_plate_under_centered_model(tmp_path):
+    res, b = _run(tmp_path, np.ones((2, 3, 4), bool), base_plate=True)
+    assert res.base_plate_size == 16
+    assert b[0, :6].tolist() == [0, 0, 0, 16, 16, 1]
+    # Model lifted one plate and centered on the 16x16 plate
+    assert b[1, :6].tolist() == [7, 1, 6, 2, 4, 3]
+
+
+def test_rank_colors_keeps_a_dark_model_apart(tmp_path):
+    # Three dark colors (blue-grey wall, dark green roof, near-black trim):
+    # nearest matching makes them all black; ranking keeps three colors
+    occ = np.ones((6, 9, 6), bool)
+    colors = np.zeros(occ.shape + (3,), np.uint8)
+    colors[:, 0:3] = (60, 70, 90)        # wall, lightest
+    colors[:, 3:6] = (10, 15, 12)        # trim, darkest
+    colors[:, 6:9] = (0, 90, 40)         # roof, most saturated
+    _, b = _run(tmp_path, occ, colors)
+    by_y = {int(y): tuple(rgb) for _, y, _, _, _, _, *rgb in b}
+    assert by_y[0] == WHITE and by_y[3] == (33, 33, 33) and by_y[6] == RED
+    _, b = _run(tmp_path, occ, colors, color_mapping="nearest")
+    assert {tuple(c) for c in b[:, 6:9]} == {(33, 33, 33)}
+
+
+def test_rank_colors_single_color_model(tmp_path):
+    # One light grey (Carlos's untextured mesh) -> white, not split
+    occ = np.ones((4, 3, 4), bool)
+    colors = np.full(occ.shape + (3,), (160, 165, 169), np.uint8)
+    _, b = _run(tmp_path, occ, colors)
+    assert {tuple(c) for c in b[:, 6:9]} == {WHITE}
+
+
+def test_smoothing_removes_speckles(tmp_path):
+    # A white wall with scattered single red cells becomes all white
+    occ = np.ones((8, 6, 8), bool)
+    colors = np.full(occ.shape + (3,), WHITE, np.uint8)
+    for x, z in [(1, 1), (5, 2), (3, 6)]:
+        colors[x, :, z] = RED
+    _, b = _run(tmp_path, occ, colors, color_smoothing=0)
+    assert any(tuple(c) == RED for c in b[:, 6:9])
+    _, b = _run(tmp_path, occ, colors, color_smoothing=1)
+    assert {tuple(c) for c in b[:, 6:9]} == {WHITE}

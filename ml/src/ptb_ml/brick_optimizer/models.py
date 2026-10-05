@@ -28,6 +28,8 @@ class BrickOptResult:
     num_loose: int= 0
     ## Loose pieces left out of the model because nothing could hold them
     num_dropped: int= 0
+    ## Side of the square base plate (0 = none)
+    base_plate_size: int= 0
     ## Cells added under loose pieces to hold them up
     num_support_cells: int= 0
     ## Layers where the solver hit its time limit before proving optimal

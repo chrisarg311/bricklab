@@ -6,6 +6,8 @@ from collections import Counter
 
 import numpy as np
 from ortools.sat.python import cp_model
+from scipy import ndimage
+from scipy.cluster.vq import kmeans2
 from scipy.sparse import coo_matrix
 from scipy.sparse.csgraph import connected_components
 
@@ -29,6 +31,99 @@ def _snap_colors(colors: np.ndarray, palette: np.ndarray) -> np.ndarray:
     """(X,Y,Z,3) RGB -> (X,Y,Z) index of the nearest kit color."""
     d = ((colors[..., None, :].astype(np.int32) - palette) ** 2).sum(-1)
     return d.argmin(-1)
+
+
+def _luma(rgb: np.ndarray) -> np.ndarray:
+    rgb = np.asarray(rgb, dtype=np.float64)
+    return rgb @ np.array([0.2126, 0.7152, 0.0722])
+
+
+def _saturation(rgb: np.ndarray) -> np.ndarray:
+    rgb = np.asarray(rgb, dtype=np.float64)
+    hi, lo = rgb.max(-1), rgb.min(-1)
+    return np.where(hi > 0, (hi - lo) / np.maximum(hi, 1e-9), 0.0)
+
+
+def _rank_colors(
+    colors: np.ndarray,
+    occupancy: np.ndarray,
+    palette: np.ndarray,
+    settings: BrickOptSettings,
+) -> np.ndarray:
+    """Map the model's own colors onto the kit by rank instead of by
+    distance: group the model's cell colors into one cluster per kit color,
+    give the most saturated cluster the kit's most saturated color (red),
+    and the rest by lightness (lightest -> white, darkest -> black).
+
+    Nearest-color matching sends a dark-themed model entirely to black;
+    ranking keeps walls, roof and trim apart. Returns (X,Y,Z) kit indices.
+    """
+    out = np.zeros(occupancy.shape, dtype=np.int64)
+    pts = colors[occupancy].astype(np.float64)
+    if len(pts) == 0:
+        return out
+
+    k = min(len(palette), len(np.unique(pts, axis=0)))
+    centers, labels = kmeans2(pts, k, minit="++", seed=0)
+    # Merge clusters whose centers are nearly the same color
+    used = np.unique(labels)
+    centers = centers[used]
+    labels = np.searchsorted(used, labels)
+    merged = list(range(len(centers)))
+    for i in range(len(centers)):
+        for j in range(i):
+            if np.linalg.norm(centers[i] - centers[j]) < settings.merge_color_distance:
+                merged[i] = merged[j]
+                break
+    roots = sorted(set(merged))
+    labels = np.array([roots.index(merged[l]) for l in labels])
+    centers = np.array([pts[labels == r].mean(0) for r in range(len(roots))])
+
+    kit_accent = int(np.argmax(_saturation(palette)))
+    kit_rest = [i for i in np.argsort(-_luma(palette)) if i != kit_accent]   # light -> dark
+
+    sat = _saturation(centers)
+    clusters = list(range(len(centers)))
+    mapping: dict[int, int] = {}
+    if len(clusters) > 1 and (
+        sat.max() >= settings.accent_min_saturation or len(clusters) > len(kit_rest)
+    ):
+        accent = int(np.argmax(sat))
+        mapping[accent] = kit_accent
+        clusters.remove(accent)
+
+    by_light = sorted(clusters, key=lambda c: -_luma(centers[c]))
+    if len(by_light) == len(kit_rest):
+        mapping.update(zip(by_light, kit_rest))
+    else:
+        # Fewer clusters than kit colors: each to the kit color nearest in
+        # lightness, keeping lighter clusters on lighter-or-equal kit colors
+        for c in by_light:
+            mapping[c] = min(kit_rest, key=lambda i: abs(_luma(palette[i]) - _luma(centers[c])))
+
+    out[occupancy] = np.array([mapping[l] for l in labels])
+    return out
+
+
+def _smooth_colors(
+    color_idx: np.ndarray, occupancy: np.ndarray, n_colors: int, rounds: int
+) -> np.ndarray:
+    """Majority filter over each cell and its occupied neighbours (3x3x3,
+    counted in brick courses), so speckles from textures and material seams
+    don't split walls into many small parts."""
+
+    X, Y, Z = occupancy.shape
+    if rounds <= 0 or Y % 3:
+        return color_idx
+    occ = occupancy[:, ::3, :]
+    lab = color_idx[:, ::3, :].copy()
+    for _ in range(rounds):
+        votes = np.stack([
+            ndimage.uniform_filter(((lab == c) & occ).astype(np.float64), size=3, mode="constant")
+            for c in range(n_colors)
+        ])
+        lab = np.where(occ, votes.argmax(0), lab)
+    return np.repeat(lab, 3, axis=1)
 
 
 def _footprints(settings: BrickOptSettings, h: int) -> list[tuple[int, int]]:
@@ -114,6 +209,8 @@ def _solve_layer(
 
 def _part_name(w: int, d: int, h: int) -> str:
     a, b = sorted((w, d))
+    if h == 1 and a >= 16:
+        return f"{a}x{b} base plate"
     return f"{a}x{b} {'brick' if h == 3 else 'plate'}"
 
 
@@ -228,7 +325,11 @@ def run_brick_optimization(
     occupancy = data["occupancy"].astype(bool)
     solid = data["solid"].astype(bool) if "solid" in data else None
     palette = _kit_palette(settings)
-    color_idx = _snap_colors(data["colors"], palette)
+    if settings.color_mapping == "rank":
+        color_idx = _rank_colors(data["colors"], occupancy, palette, settings)
+    else:
+        color_idx = _snap_colors(data["colors"], palette)
+    color_idx = _smooth_colors(color_idx, occupancy, len(palette), settings.color_smoothing)
 
     support_cells = 0
     try:
@@ -258,6 +359,18 @@ def run_brick_optimization(
     log.info(f"Placed {len(pieces)} parts ({dropped} loose dropped, "
              f"{int(loose.sum())} loose kept, {not_optimal} layers not proven optimal)")
 
+    # One square base plate under everything, counted as one part. The
+    # model is centered on it and lifted one plate
+    base_size = 0
+    if settings.base_plate and pieces:
+        X, _, Z = occupancy.shape
+        need = max(X, Z)
+        base_size = next((n for n in settings.base_plate_sizes if n >= need), need)
+        ox, oz = (base_size - X) // 2, (base_size - Z) // 2
+        pieces = [(x + ox, y + 1, z + oz, w, d, h, c) for x, y, z, w, d, h, c in pieces]
+        pieces.insert(0, (0, 0, 0, base_size, base_size, 1,
+                          settings.colors.index(settings.base_plate_color)))
+
     rgb = palette[[p[6] for p in pieces]] if pieces else np.zeros((0, 3), np.int32)
     brick_array = np.array([p[:6] for p in pieces], dtype=np.int32).reshape(-1, 6)
     brick_array = np.hstack([brick_array, rgb.astype(np.int32)])
@@ -271,6 +384,7 @@ def run_brick_optimization(
         "unique_entries": len(bom),
         "loose_pieces": int(loose.sum()),
         "dropped_loose_pieces": dropped,
+        "base_plate": f"{base_size}x{base_size}" if base_size else None,
         "entries": [
             {"part": part, "color": color, "quantity": n}
             for (part, color), n in bom.most_common()
@@ -287,6 +401,7 @@ def run_brick_optimization(
         num_bom_entries=len(bom),
         num_loose=int(loose.sum()),
         num_dropped=dropped,
+        base_plate_size=base_size,
         num_support_cells=support_cells,
         num_layers_not_optimal=not_optimal,
     )

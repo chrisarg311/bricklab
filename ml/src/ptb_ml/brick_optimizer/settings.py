@@ -26,6 +26,17 @@ class BrickOptSettings:
     catalog: tuple[tuple[int, int, int], ...]= CATALOG_20
     colors: tuple[str, ...]= KIT_COLORS
 
+    ## "rank": the model's lightest colors -> white, darkest -> black, most
+    ## saturated -> red. "nearest": each cell to the closest kit color
+    color_mapping: str= "rank"
+    ## A cluster needs at least this saturation (0-1) to be the accent color
+    accent_min_saturation: float= 0.35
+    ## Model colors closer than this (RGB distance) count as one color
+    merge_color_distance: float= 40.0
+
+    ## Rounds of majority filtering on the kit colors (0 = off)
+    color_smoothing: int= 2
+
     ## Cost per part; the main term, so fewer parts always wins
     piece_cost: int= 100
     ## Reward per extra part underneath that this part locks together
@@ -51,6 +62,13 @@ class BrickOptSettings:
     ## Leave out pieces that are still loose after repair
     drop_loose: bool= True
 
+    ## One square base plate under the whole model, counted as one part.
+    ## Smallest standard size that fits the footprint; if none fits, the
+    ## exact footprint size
+    base_plate: bool= True
+    base_plate_sizes: tuple[int, ...]= (16, 32, 48)
+    base_plate_color: str= "Black"
+
     time_limit_s: float= 2.0
     workers: int= 8
 
@@ -63,5 +81,9 @@ class BrickOptSettings:
             raise ValueError("part heights must be 1 (plate) or 3 (brick)")
         if not self.colors:
             raise ValueError("colors must not be empty")
+        if self.base_plate and self.base_plate_color not in self.colors:
+            raise ValueError("base_plate_color must be one of colors")
+        if self.color_mapping not in ("rank", "nearest"):
+            raise ValueError("color_mapping must be 'rank' or 'nearest'")
         if self.time_limit_s <= 0:
             raise ValueError("time_limit_s must be positive")

@@ -60,6 +60,8 @@ def _settings(shapes) -> BrickificationSettings:
 def part_name(w: int, d: int, h: int) -> str:
     """Rotations are the same physical part: 1x6 and 6x1 are both '1x6'."""
     a, b = sorted((w, d))
+    if h == 1 and a >= 16:
+        return f"{a}x{b} base plate"
     return f"{a}x{b} {'brick' if h == 3 else 'plate'}"
 
 
