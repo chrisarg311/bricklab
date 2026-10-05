@@ -2,8 +2,9 @@
 GLB -> LEGO voxel grid -> bricks, once per brick catalog, with a report.
 
 Used to decide which pieces belong in our catalog: run a model through each
-catalog and compare piece counts, unique parts and how many cells fall back
-to 1x1 plates.
+greedy catalog and through the optimizer (20-part catalog, kit colors,
+heights rounded to brick courses), and compare piece counts, unique parts
+and how many cells fall back to 1x1 plates.
 
     PYTHONPATH=ml/src python ml/scripts/glb_to_bricks.py model.glb \
         --studs 32 --up y --hollow 2 --out ml/tmp/bricks/model
@@ -24,6 +25,7 @@ from ptb_ml.brickification import (
     run_brickification,
 )
 from ptb_ml.brickification.settings import BRICK_SHAPES
+from ptb_ml.brick_optimizer import BrickOptReq, BrickOptSettings, run_brick_optimization
 from ptb_ml.instructions.glb_builder import build_glb
 from ptb_ml.instructions.settings import InstructionsSettings
 from ptb_ml.mesh_voxel import MeshVoxelReq, MeshVoxelSettings, run_mesh_voxelization
@@ -87,6 +89,40 @@ def _bricks_glb(bricks: np.ndarray, grid_y: int, path: Path) -> None:
     build_glb(flipped, InstructionsSettings(), path)
 
 
+OPTIMIZED = "optimized-20"
+
+
+def _optimized(args, out: Path) -> dict:
+    """Voxelize in whole brick courses with an open floor, then tile with
+    the CP-SAT optimizer (20-part catalog, white/black/red)."""
+    vox = run_mesh_voxelization(
+        MeshVoxelReq(job_id=args.mesh.stem, mesh_path=args.mesh, output_dir=out),
+        MeshVoxelSettings(
+            target_studs=args.studs,
+            up_axis=args.up,
+            hollow_wall_studs=args.hollow or None,
+            snap_to_courses=True,
+            floor=False,
+        ),
+    )
+    if not vox.ok:
+        raise SystemExit(vox.error)
+    t = time.perf_counter()
+    res = run_brick_optimization(
+        BrickOptReq(job_id=OPTIMIZED, voxel_path=vox.voxel_path, output_dir=out),
+        BrickOptSettings(),
+    )
+    if not res.ok:
+        raise SystemExit(res.error)
+    bricks = np.load(res.bricks_path)["bricks"]
+    report = _report(bricks, time.perf_counter() - t)
+    report["dropped_loose"] = res.num_dropped
+    report["support_cells"] = res.num_support_cells
+    (out / "report.json").write_text(json.dumps(report, indent=2))
+    _bricks_glb(bricks, vox.grid_shape[1], out / "bricks.glb")
+    return report
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[1])
     ap.add_argument("mesh", type=Path)
@@ -94,8 +130,9 @@ def main() -> None:
     ap.add_argument("--up", choices=["y", "z"], default="y")
     ap.add_argument("--hollow", type=int, default=2, help="wall studs; 0 = solid")
     ap.add_argument("--out", type=Path, default=None)
-    ap.add_argument("--catalog", choices=list(CATALOGS), action="append")
+    ap.add_argument("--catalog", choices=list(CATALOGS) + [OPTIMIZED], action="append")
     args = ap.parse_args()
+    chosen = args.catalog or list(CATALOGS) + [OPTIMIZED]
 
     out = args.out or Path("ml/tmp/bricks") / args.mesh.stem
     vox = run_mesh_voxelization(
@@ -112,7 +149,7 @@ def main() -> None:
     print(f"grid {X}x{Y}x{Z} (studs x plates x studs), {vox.num_occupied} cells")
 
     summary = {}
-    for name in args.catalog or list(CATALOGS):
+    for name in [c for c in chosen if c in CATALOGS]:
         cat_dir = out / name.replace("/", "_").replace("+", "_")
         t = time.perf_counter()
         res = run_brickification(
@@ -126,6 +163,9 @@ def main() -> None:
         (cat_dir / "report.json").write_text(json.dumps(report, indent=2))
         _bricks_glb(bricks, Y, cat_dir / "bricks.glb")
         summary[name] = report
+
+    if OPTIMIZED in chosen:
+        summary[OPTIMIZED] = _optimized(args, out / "optimized")
 
     cols = ["total_pieces", "unique_parts", "unique_part_colors", "one_by_one_share",
             "cells_per_piece", "seconds"]
