@@ -1,0 +1,56 @@
+from __future__ import annotations
+from dataclasses import dataclass
+
+LEGO_STUD_M= 0.008
+LEGO_PLATE_M= 0.0032
+
+
+@dataclass(frozen=True)
+class MeshVoxelSettings:
+    """
+    Mesh -> LEGO grid. One cell is 1 stud x 1 plate x 1 stud, indexed
+    (x, y, z) with y vertical and y=0 on the ground, which is what
+    brickification/engine.py builds from.
+    """
+
+    ## Size of the model: studs along the longest horizontal side
+    ## (S/M/L = 16/32/48). The mesh's own units are ignored.
+    target_studs: int= 32
+
+    ## Up axis of the input mesh. glTF is "y"; PR #3's gen_model is "z".
+    up_axis: str= "y"
+
+    stud_size_m: float= LEGO_STUD_M
+    plate_size_m: float= LEGO_PLATE_M
+
+    ## Fill the inside of closed meshes; otherwise only the surface is kept
+    fill_interior: bool= True
+
+    ## Keep only this many studs of wall in from the outside (x/z only).
+    ## None keeps the model solid.
+    hollow_wall_studs: int | None= 2
+    ## When hollow, plates kept solid under open air (roof) and above the
+    ## ground (floor)
+    cap_plates: int= 1
+
+    ## Surface samples per unit of grid-space area. Too low leaves holes
+    ## in the shell and the interior fill leaks out.
+    samples_per_cell: float= 20.0
+    seed: int= 0
+
+    ## Used when the mesh carries no color
+    default_color: tuple[int, int, int]= (160, 165, 169)
+
+    def __post_init__(self):
+        if self.target_studs < 1:
+            raise ValueError("target_studs must be >= 1")
+        if self.up_axis not in ("y", "z"):
+            raise ValueError("up_axis must be 'y' or 'z'")
+        if self.stud_size_m <= 0 or self.plate_size_m <= 0:
+            raise ValueError("stud and plate size must be positive")
+        if self.hollow_wall_studs is not None and self.hollow_wall_studs < 1:
+            raise ValueError("hollow_wall_studs must be >= 1 or None")
+        if self.cap_plates < 1:
+            raise ValueError("cap_plates must be >= 1")
+        if self.samples_per_cell <= 0:
+            raise ValueError("samples_per_cell must be positive")
