@@ -155,21 +155,36 @@ def _fill(surface: np.ndarray) -> np.ndarray:
     return solid
 
 
-def _hollow(solid: np.ndarray, wall: int, cap: int) -> np.ndarray:
-    """Keep cells within `wall` studs of the outside in x/z, or within `cap`
-    plates of open air above/below, so the model becomes walls plus a floor
-    and a covered top instead of a solid block."""
+def _hollow(
+    solid: np.ndarray, wall: int, plate_ratio: float, floor: bool
+) -> np.ndarray:
+    """Keep cells within `wall` studs of open air, measured as true 3D
+    distance (a plate is plate_ratio studs tall).
 
-    # Erode in x/z only: a structure that is flat along y
-    xz = np.zeros((3, 3, 3), dtype=bool)
-    xz[:, 1, :] = ndimage.generate_binary_structure(2, 1)
-    # Erode in y only
-    y = np.zeros((3, 3, 3), dtype=bool)
-    y[1, :, 1] = True
+    Measuring across the slope, not only sideways, keeps sloped roofs thick
+    enough that each step overlaps the one below and they lock together.
+    The extra half stud keeps the diagonal neighbour on a 45-degree step.
+    With floor=False the ground counts as material, so the bottom stays
+    open for a base plate.
+    """
+    X, Y, Z = solid.shape
+    padded = np.zeros((X + 2, Y + 2, Z + 2), dtype=bool)
+    padded[1:-1, 1:-1, 1:-1] = solid
+    if not floor:
+        padded[1:-1, 0, 1:-1] = solid[:, 0, :]
+    dist = ndimage.distance_transform_edt(padded, sampling=(1.0, plate_ratio, 1.0))
+    return solid & (dist[1:-1, 1:-1, 1:-1] <= wall + 0.5)
 
-    inner = ndimage.binary_erosion(solid, structure=xz, iterations=wall)
-    inner &= ndimage.binary_erosion(solid, structure=y, iterations=cap)
-    return solid & ~inner
+
+def _to_courses(grid: np.ndarray) -> np.ndarray:
+    """(X, Y plates, Z) -> (X, K courses, Z): a 3-plate course of a column
+    is filled when at least 2 of its plates are. Y is padded up to 3K."""
+
+    X, Y, Z = grid.shape
+    K = -(-Y // 3)
+    padded = np.zeros((X, K * 3, Z), dtype=bool)
+    padded[:, :Y] = grid
+    return padded.reshape(X, K, 3, Z).sum(2) >= 2
 
 
 def run_mesh_voxelization(
@@ -206,15 +221,35 @@ def run_mesh_voxelization(
     points, colors = _sample_surface(meshes, settings)
     surface, surface_colors = _surface_grid(points, colors, shape)
 
-    occupancy = _fill(surface) if settings.fill_interior else surface.copy()
-    if settings.hollow_wall_studs is not None:
-        occupancy = _hollow(
-            occupancy, settings.hollow_wall_studs, settings.cap_plates
-        )
+    solid = _fill(surface) if settings.fill_interior else surface.copy()
+    plate_ratio = settings.plate_size_m / settings.stud_size_m
+    if settings.snap_to_courses:
+        # Work in whole bricks: round, hollow per course, then expand back
+        # to plates so every course is either fully filled or empty
+        courses = _to_courses(solid)
+        shell = courses
+        if settings.hollow_wall_studs is not None:
+            shell = _hollow(courses, settings.hollow_wall_studs, 3 * plate_ratio, settings.floor)
+        solid = np.repeat(courses, 3, axis=1)
+        occupancy = np.repeat(shell, 3, axis=1)
+        surface = np.pad(surface, ((0, 0), (0, solid.shape[1] - surface.shape[1]), (0, 0)))
+        shape = solid.shape
+    else:
+        occupancy = solid
+        if settings.hollow_wall_studs is not None:
+            occupancy = _hollow(solid, settings.hollow_wall_studs, plate_ratio, settings.floor)
 
     # Every occupied cell takes the color of the nearest surface cell
+    surface_colors = np.pad(
+        surface_colors, ((0, 0), (0, surface.shape[1] - surface_colors.shape[1]), (0, 0), (0, 0))
+    )
     _, nearest = ndimage.distance_transform_edt(~surface, return_indices=True)
     colors_grid = surface_colors[nearest[0], nearest[1], nearest[2]]
+    if settings.snap_to_courses:
+        # One color per course: its middle plate's
+        X, Y, Z = shape
+        middle = colors_grid.reshape(X, Y // 3, 3, Z, 3)[:, :, 1:2]
+        colors_grid = np.repeat(middle, 3, axis=2).reshape(X, Y, Z, 3)
     colors_grid[~occupancy] = 0
 
     log.info(f"Occupied: {occupancy.sum()} (surface {surface.sum()})")
@@ -223,6 +258,8 @@ def run_mesh_voxelization(
         voxel_path,
         occupancy=occupancy,
         colors=colors_grid,
+        # Filled model before hollowing: where support can be added later
+        solid=solid,
         scale=scale,
         up_axis=settings.up_axis,
         source=str(req.mesh_path),
@@ -232,7 +269,7 @@ def run_mesh_voxelization(
         job_id=req.job_id,
         ok=True,
         voxel_path=voxel_path,
-        grid_shape=shape,
+        grid_shape=tuple(int(v) for v in shape),
         num_occupied=int(occupancy.sum()),
         num_surface=int(surface.sum()),
     )

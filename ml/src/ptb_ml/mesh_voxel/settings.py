@@ -26,12 +26,15 @@ class MeshVoxelSettings:
     ## Fill the inside of closed meshes; otherwise only the surface is kept
     fill_interior: bool= True
 
-    ## Keep only this many studs of wall in from the outside (x/z only).
-    ## None keeps the model solid.
+    ## Keep only cells within this many studs of open air (3D distance, so
+    ## sloped roofs keep overlapping steps). None keeps the model solid.
     hollow_wall_studs: int | None= 2
-    ## When hollow, plates kept solid under open air (roof) and above the
-    ## ground (floor)
-    cap_plates: int= 1
+    ## Keep a floor when hollow; False leaves the bottom open for a base plate
+    floor: bool= True
+
+    ## Round heights to whole bricks (3 plates) before hollowing, so walls
+    ## and roof steps are built from bricks instead of stacks of plates
+    snap_to_courses: bool= False
 
     ## Surface samples per unit of grid-space area. Too low leaves holes
     ## in the shell and the interior fill leaks out.
@@ -50,7 +53,5 @@ class MeshVoxelSettings:
             raise ValueError("stud and plate size must be positive")
         if self.hollow_wall_studs is not None and self.hollow_wall_studs < 1:
             raise ValueError("hollow_wall_studs must be >= 1 or None")
-        if self.cap_plates < 1:
-            raise ValueError("cap_plates must be >= 1")
         if self.samples_per_cell <= 0:
             raise ValueError("samples_per_cell must be positive")
