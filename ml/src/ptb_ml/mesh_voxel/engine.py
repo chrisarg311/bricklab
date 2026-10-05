@@ -36,7 +36,37 @@ def _load_meshes(
     if settings.up_axis == "z":
         for m in meshes:
             m.apply_transform(_Z_UP_TO_Y_UP)
+    if settings.drop_ground_planes:
+        meshes = _drop_ground_planes(meshes)
     return meshes
+
+
+def _drop_ground_planes(meshes: list[trimesh.Trimesh]) -> list[trimesh.Trimesh]:
+    """Remove flat meshes at the bottom that are much wider than the rest:
+    the lawn or ground plane many downloaded models sit on. Left in, it sets
+    the model's size and the house comes out tiny."""
+
+    if len(meshes) < 2:
+        return meshes
+    lo = np.min([m.bounds[0] for m in meshes], axis=0)
+    hi = np.max([m.bounds[1] for m in meshes], axis=0)
+    height = hi[1] - lo[1]
+
+    def xz_area(ms) -> float:
+        a = np.min([m.bounds[0] for m in ms], axis=0)
+        b = np.max([m.bounds[1] for m in ms], axis=0)
+        return float((b[0] - a[0]) * (b[2] - a[2]))
+
+    keep = []
+    for i, m in enumerate(meshes):
+        rest = meshes[:i] + meshes[i + 1:]
+        flat = m.extents[1] < 0.02 * height
+        at_bottom = m.bounds[0][1] - lo[1] < 0.25 * height
+        if flat and at_bottom and xz_area([m]) > 1.5 * xz_area(rest):
+            log.info(f"Dropping ground plane ({len(m.faces)} faces)")
+            continue
+        keep.append(m)
+    return keep or meshes
 
 
 def _to_grid_units(
@@ -65,6 +95,13 @@ def _to_grid_units(
     return shape, float(s)
 
 
+def _linear_to_srgb(rgb: np.ndarray) -> np.ndarray:
+    """glTF color factors are linear light; convert to display sRGB 0-255."""
+    c = np.asarray(rgb, dtype=np.float64) / 255.0
+    c = np.where(c <= 0.0031308, 12.92 * c, 1.055 * np.power(c, 1 / 2.4) - 0.055)
+    return (c * 255).round().clip(0, 255)
+
+
 def _mesh_colors(
     mesh: trimesh.Trimesh,
     face_index: np.ndarray,
@@ -77,14 +114,23 @@ def _mesh_colors(
     visual = mesh.visual
     if isinstance(visual, trimesh.visual.TextureVisuals):
         material = visual.material
-        image = getattr(material, "image", None)
+        pbr = isinstance(material, trimesh.visual.material.PBRMaterial)
+        # glTF (PBR) keeps its texture in baseColorTexture; OBJ in image
+        image = material.baseColorTexture if pbr else getattr(material, "image", None)
+        factor = getattr(material, "baseColorFactor", None) if pbr else None
         if visual.uv is not None and image is not None:
             uv_tri = visual.uv[mesh.faces[face_index]]           # (n, 3, 2)
             uv = (uv_tri * bary[:, :, None]).sum(axis=1)
-            return trimesh.visual.color.uv_to_interpolated_color(uv, image)[:, :3]
-        main = getattr(material, "main_color", None)
+            rgb = trimesh.visual.color.uv_to_interpolated_color(uv, image)[:, :3]
+            if factor is not None:
+                rgb = rgb * (np.asarray(factor[:3]) / 255.0)
+            return rgb
+        main = factor if factor is not None else getattr(material, "main_color", None)
         if main is not None:
-            return np.tile(np.asarray(main)[:3], (len(face_index), 1))
+            rgb = np.asarray(main)[:3]
+            if pbr:
+                rgb = _linear_to_srgb(rgb)
+            return np.tile(rgb, (len(face_index), 1))
     elif isinstance(visual, trimesh.visual.ColorVisuals) and visual.defined:
         return visual.face_colors[face_index][:, :3]
 
@@ -94,18 +140,21 @@ def _mesh_colors(
 def _sample_surface(
     meshes: list[trimesh.Trimesh],
     settings: MeshVoxelSettings,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Random points on every mesh surface plus their RGB colors."""
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Random points on every mesh surface. Returns (points, RGB colors,
+    mesh index per point, color-vote weight per point)."""
 
     rng = np.random.default_rng(settings.seed)
-    points, colors = [], []
-    for m in meshes:
+    points, colors, mesh_ids, weights = [], [], [], []
+    for i, m in enumerate(meshes):
         n = max(1, int(m.area * settings.samples_per_cell))
         pts, face_index, bary = trimesh.sample.sample_surface(
             m, n, return_barycentric=True, seed=rng
         )
         # Vertices too, so tiny faces and sharp corners are never missed.
-        # Each vertex is sampled through one face that uses it.
+        # Each vertex is sampled through one face that uses it. They mark
+        # occupancy but barely vote on color: a dense mesh has many
+        # vertices whatever its visible area
         v_face = m.vertex_faces[:, 0]
         used = v_face >= 0
         v_face = v_face[used]
@@ -116,30 +165,48 @@ def _sample_surface(
             _mesh_colors(m, face_index, bary, settings),
             _mesh_colors(m, v_face, v_bary, settings),
         ]
-    return np.vstack(points), np.vstack(colors).astype(np.float64)
+        mesh_ids += [np.full(len(pts), i), np.full(int(used.sum()), i)]
+        weights += [np.ones(len(pts)), np.full(int(used.sum()), 1e-3)]
+    return (
+        np.vstack(points),
+        np.vstack(colors).astype(np.float64),
+        np.concatenate(mesh_ids),
+        np.concatenate(weights),
+    )
 
 
 def _surface_grid(
     points: np.ndarray,
     colors: np.ndarray,
+    mesh_ids: np.ndarray,
+    weights: np.ndarray,
     shape: tuple[int, int, int],
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Bin points into cells; average their colors per cell."""
+    """Bin points into cells. Each cell takes the color of the mesh with the
+    most surface in it, averaged over that mesh's points only, so cells on
+    a border between materials don't come out as a blend of both."""
 
     idx = np.floor(points).astype(np.int64)
     idx = np.clip(idx, 0, np.array(shape) - 1)
     flat = np.ravel_multi_index(idx.T, shape)
 
     size = int(np.prod(shape))
-    count = np.bincount(flat, minlength=size)
-    color_sum = np.zeros((size, 3), dtype=np.float64)
-    np.add.at(color_sum, flat, colors)
+    n_mesh = int(mesh_ids.max()) + 1
+    key = flat * n_mesh + mesh_ids
+    vote = np.bincount(key, weights=weights, minlength=size * n_mesh).reshape(size, n_mesh)
+    count = np.bincount(key, minlength=size * n_mesh).reshape(size, n_mesh)
+    color_sum = np.zeros((size * n_mesh, 3), dtype=np.float64)
+    np.add.at(color_sum, key, colors)
+    color_sum = color_sum.reshape(size, n_mesh, 3)
 
-    surface = count > 0
-    color_sum[surface] /= count[surface, None]
+    surface = count.sum(1) > 0
+    best = vote.argmax(1)
+    rows = np.arange(size)
+    cell_colors = color_sum[rows, best] / np.maximum(count[rows, best], 1)[:, None]
+    cell_colors[~surface] = 0
     return (
         surface.reshape(shape),
-        color_sum.reshape(shape + (3,)).round().clip(0, 255).astype(np.uint8),
+        cell_colors.reshape(shape + (3,)).round().clip(0, 255).astype(np.uint8),
     )
 
 
@@ -218,8 +285,8 @@ def run_mesh_voxelization(
     shape, scale = _to_grid_units(meshes, settings)
     log.info(f"Grid: {shape[0]}x{shape[1]}x{shape[2]} (studs x plates x studs)")
 
-    points, colors = _sample_surface(meshes, settings)
-    surface, surface_colors = _surface_grid(points, colors, shape)
+    points, colors, mesh_ids, weights = _sample_surface(meshes, settings)
+    surface, surface_colors = _surface_grid(points, colors, mesh_ids, weights, shape)
 
     solid = _fill(surface) if settings.fill_interior else surface.copy()
     plate_ratio = settings.plate_size_m / settings.stud_size_m

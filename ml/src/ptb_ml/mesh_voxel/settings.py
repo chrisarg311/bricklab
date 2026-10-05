@@ -23,6 +23,9 @@ class MeshVoxelSettings:
     stud_size_m: float= LEGO_STUD_M
     plate_size_m: float= LEGO_PLATE_M
 
+    ## Drop a flat ground/lawn plane under the model so it doesn't set the size
+    drop_ground_planes: bool= True
+
     ## Fill the inside of closed meshes; otherwise only the surface is kept
     fill_interior: bool= True
 
