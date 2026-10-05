@@ -121,7 +121,7 @@ def _brickify_layer(
         
             placed_here= False
             for w,d,bh in shapes:
-                if _can_plce((x, y, z, w, d, bh), occupancy, placed, settings):
+                if _can_plce((x, y, z, w, bh, d), occupancy, placed, settings):
                     if _check_stagger(x, z, y,w, d, placed_bricks, settings):
                         r, g, b = _get_region_color(
                             x, y, z, w, bh, d, colors,
@@ -139,7 +139,9 @@ def _brickify_layer(
                         break
 
 
-            if not placed_here and not placed[x, y, z]:
+            # 1x1 plate fallback only in the plate pass, so cells a full
+            # brick can't cover still get a chance at a larger plate
+            if h == 1 and not placed_here and not placed[x, y, z]:
                 r, g, b = _get_region_color(
                     x, y, z, 1, 1, 1, colors,
                     settings.snap_to_lego_colors
@@ -211,20 +213,14 @@ def run_brickification(
     while y < Y:
         # Try to place 3-plate bricks first
         if y + 3 <= Y and occupancy[:, y:y+3, :].any():
-            layer_bricks = _brickify_layer(
+            _brickify_layer(
                 y, 3, occupancy, colors, placed, all_bricks, settings
-            )
-            all_bricks.extend(
-                [b for b in layer_bricks if b not in all_bricks]
             )
 
         # Then fill remaining with plates
         if occupancy[:, y:y+1, :].any():
-            layer_bricks = _brickify_layer(
+            _brickify_layer(
                 y, 1, occupancy, colors, placed, all_bricks, settings
-            )
-            all_bricks.extend(
-                [b for b in layer_bricks if b not in all_bricks]
             )
 
         y += 1
