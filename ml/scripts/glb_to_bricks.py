@@ -1,5 +1,5 @@
 """
-GLB -> LEGO voxel grid -> bricks, once per brick catalog, with a report.
+GLB -> brick voxel grid -> bricks, once per brick catalog, with a report.
 
 Used to decide which pieces belong in our catalog: run a model through each
 greedy catalog and through the optimizer (20-part catalog, kit colors,

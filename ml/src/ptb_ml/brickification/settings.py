@@ -25,7 +25,7 @@ class BrickificationSettings:
     min_wall_thickness: int= 2
     max_overhand_studs: int= 2
 
-    snap_to_lego_colors: bool= True
+    snap_to_brick_colors: bool= True
 
     def __post_init__(self):
         if self.min_stagger_overlap < 1:

@@ -1,14 +1,14 @@
 from __future__ import annotations
 from dataclasses import dataclass
 
-LEGO_STUD_M= 0.008
-LEGO_PLATE_M= 0.0032
+STUD_M= 0.008
+PLATE_M= 0.0032
 
 
 @dataclass(frozen=True)
 class MeshVoxelSettings:
     """
-    Mesh -> LEGO grid. One cell is 1 stud x 1 plate x 1 stud, indexed
+    Mesh -> brick grid. One cell is 1 stud x 1 plate x 1 stud, indexed
     (x, y, z) with y vertical and y=0 on the ground, which is what
     brickification/engine.py builds from.
     """
@@ -20,8 +20,8 @@ class MeshVoxelSettings:
     ## Up axis of the input mesh. glTF is "y"; PR #3's gen_model is "z".
     up_axis: str= "y"
 
-    stud_size_m: float= LEGO_STUD_M
-    plate_size_m: float= LEGO_PLATE_M
+    stud_size_m: float= STUD_M
+    plate_size_m: float= PLATE_M
 
     ## Drop a flat ground/lawn plane under the model so it doesn't set the size
     drop_ground_planes: bool= True

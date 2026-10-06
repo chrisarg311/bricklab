@@ -11,7 +11,7 @@ from scipy.cluster.vq import kmeans2
 from scipy.sparse import coo_matrix
 from scipy.sparse.csgraph import connected_components
 
-from ..brickification.colors import LEGO_COLORS
+from ..brickification.colors import BRICK_COLORS
 from .models import BrickOptReq, BrickOptResult
 from .settings import BrickOptSettings
 
@@ -20,10 +20,10 @@ log = logging.getLogger(__name__)
 
 
 def _kit_palette(settings: BrickOptSettings) -> np.ndarray:
-    by_name = {name: (r, g, b) for name, r, g, b in LEGO_COLORS}
+    by_name = {name: (r, g, b) for name, r, g, b in BRICK_COLORS}
     missing = [c for c in settings.colors if c not in by_name]
     if missing:
-        raise ValueError(f"unknown LEGO colors: {missing}")
+        raise ValueError(f"unknown brick colors: {missing}")
     return np.array([by_name[c] for c in settings.colors], dtype=np.int32)
 
 
@@ -371,7 +371,7 @@ def run_brick_optimization(
         # The base plate's color is outside the kit colors (bricks only)
         pieces.insert(0, (0, 0, 0, base_size, base_size, 1, len(palette)))
 
-    by_name = {name: (r, g, b) for name, r, g, b in LEGO_COLORS}
+    by_name = {name: (r, g, b) for name, r, g, b in BRICK_COLORS}
     out_palette = np.vstack([palette, [by_name[settings.base_plate_color]]])
     out_names = tuple(settings.colors) + (settings.base_plate_color,)
     rgb = out_palette[[p[6] for p in pieces]] if pieces else np.zeros((0, 3), np.int32)

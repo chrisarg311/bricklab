@@ -6,7 +6,7 @@ from collections import defaultdict
 from pathlib import Path
 import numpy as np
 
-from .colors import snap_to_lego_color
+from .colors import snap_to_brick_color
 from .models import Brick, BomEntry, BrickificationReq, BrickificationResult
 from .settings import BrickificationSettings
 
@@ -83,13 +83,13 @@ def _get_region_color(
     colors: np.ndarray,
     snap: bool,
 ) -> tuple[int, int, int]:
-    """Aveage color over brick region, optionally snap to Lego color"""
+    """Aveage color over brick region, optionally snap to a brick color"""
 
     region = colors[x:x+w, y:y+h, z:z+d]
     avg = region.mean(axis=(0, 1, 2))
     r, g, b = int(avg[0]), int(avg[1]), int(avg[2])
     if snap:
-        r,g,b = snap_to_lego_color(r, g, b)
+        r,g,b = snap_to_brick_color(r, g, b)
 
     return r, g, b
 
@@ -125,7 +125,7 @@ def _brickify_layer(
                     if _check_stagger(x, z, y,w, d, placed_bricks, settings):
                         r, g, b = _get_region_color(
                             x, y, z, w, bh, d, colors,
-                            settings.snap_to_lego_colors
+                            settings.snap_to_brick_colors
                         )
                         brick= Brick(
                             x=x, y=y, z=z,
@@ -144,7 +144,7 @@ def _brickify_layer(
             if h == 1 and not placed_here and not placed[x, y, z]:
                 r, g, b = _get_region_color(
                     x, y, z, 1, 1, 1, colors,
-                    settings.snap_to_lego_colors
+                    settings.snap_to_brick_colors
                 )
                 brick = Brick(
                     x=x, y=y, z=z,

@@ -23,7 +23,7 @@ dependencies = [
     "geffnet>=1.0.2",
     "open3d>=0.19.0",
     "pygltflib>=1.16.5",
-    # mesh -> LEGO voxel grid (mesh_voxel)
+    # mesh -> brick voxel grid (mesh_voxel)
     "trimesh>=4.0",
     "scipy>=1.10",
     # brick layout optimizer (brick_optimizer), Apache-2.0
