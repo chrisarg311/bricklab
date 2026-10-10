@@ -121,7 +121,7 @@ def test_rank_colors_keeps_a_dark_model_apart(tmp_path):
 
 
 def test_rank_colors_single_color_model(tmp_path):
-    # One light grey (Carlos's untextured mesh) -> white, not split
+    # One light grey (an untextured mesh) -> white, not split
     occ = np.ones((4, 3, 4), bool)
     colors = np.full(occ.shape + (3,), (160, 165, 169), np.uint8)
     _, b = _run(tmp_path, occ, colors)

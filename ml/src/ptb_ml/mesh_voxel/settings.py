@@ -9,21 +9,20 @@ PLATE_M= 0.0032
 class MeshVoxelSettings:
     """
     Mesh -> brick grid. One cell is 1 stud x 1 plate x 1 stud, indexed
-    (x, y, z) with y vertical and y=0 on the ground, which is what
-    brickification/engine.py builds from.
+    (x, y, z) with y vertical and y=0 on the ground.
     """
 
     ## Size of the model: studs along the longest horizontal side
-    ## (S/M/L = 16/32/48). The mesh's own units are ignored.
+    ## (e.g. 16/20/24). The mesh's own units are ignored.
     target_studs: int= 32
 
-    ## Up axis of the input mesh. glTF is "y"; PR #3's gen_model is "z".
+    ## Up axis of the input mesh: glTF is "y"; some exporters write "z".
     up_axis: str= "y"
 
     stud_size_m: float= STUD_M
     plate_size_m: float= PLATE_M
 
-    ## Drop a flat ground/lawn plane under the model so it doesn't set the size
+    ## Drop a flat ground plane under the model so it doesn't set the size
     drop_ground_planes: bool= True
 
     ## Fill the inside of closed meshes; otherwise only the surface is kept

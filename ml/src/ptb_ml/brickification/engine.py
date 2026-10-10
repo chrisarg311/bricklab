@@ -83,7 +83,7 @@ def _get_region_color(
     colors: np.ndarray,
     snap: bool,
 ) -> tuple[int, int, int]:
-    """Aveage color over brick region, optionally snap to a brick color"""
+    """Average color over brick region, optionally snap to a brick color"""
 
     region = colors[x:x+w, y:y+h, z:z+d]
     avg = region.mean(axis=(0, 1, 2))

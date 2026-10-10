@@ -1,13 +1,12 @@
 """
 GLB -> brick voxel grid -> bricks, once per brick catalog, with a report.
 
-Used to decide which pieces belong in our catalog: run a model through each
-greedy catalog and through the optimizer (20-part catalog, kit colors,
-heights rounded to brick courses), and compare piece counts, unique parts
-and how many cells fall back to 1x1 plates.
+Runs a model through the greedy engine with each catalog and through the
+optimizer (20-part catalog, kit colors, heights rounded to brick courses),
+and compares piece counts, unique parts and 1x1 fallbacks.
 
     PYTHONPATH=ml/src python ml/scripts/glb_to_bricks.py model.glb \
-        --studs 32 --up y --hollow 2 --out ml/tmp/bricks/model
+        --studs 20 --up y --hollow 2 --out ml/tmp/bricks/model
 """
 from __future__ import annotations
 
@@ -32,8 +31,8 @@ from ptb_ml.mesh_voxel import MeshVoxelReq, MeshVoxelSettings, run_mesh_voxeliza
 
 
 def _with_rotations(shapes) -> list[tuple[int, int, int]]:
-    """Add the 90-degree twin (d, w, h) of every shape. The engine only
-    places a shape in the orientation it is listed in."""
+    """Add the 90-degree twin (d, w, h) of every shape: the greedy engine
+    only places a shape in its listed orientation."""
     out = []
     for w, d, h in shapes:
         for s in ((w, d, h), (d, w, h)):
@@ -84,8 +83,8 @@ def _report(bricks: np.ndarray, seconds: float) -> dict:
 
 
 def _bricks_glb(bricks: np.ndarray, grid_y: int, path: Path) -> None:
-    """build_glb negates y (the old TSDF grids were y-down). Ours is y-up,
-    so mirror first to keep the model upright."""
+    """build_glb flips y; our grid is y-up, so pre-flip to keep the model
+    upright."""
     flipped = bricks.copy()
     flipped[:, 1] = grid_y - bricks[:, 1] - bricks[:, 5]
     build_glb(flipped, InstructionsSettings(), path)

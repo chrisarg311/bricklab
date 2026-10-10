@@ -50,13 +50,11 @@ def _rank_colors(
     palette: np.ndarray,
     settings: BrickOptSettings,
 ) -> np.ndarray:
-    """Map the model's own colors onto the kit by rank instead of by
-    distance: group the model's cell colors into one cluster per kit color,
-    give the most saturated cluster the kit's most saturated color (red),
-    and the rest by lightness (lightest -> white, darkest -> black).
-
-    Nearest-color matching sends a dark-themed model entirely to black;
-    ranking keeps walls, roof and trim apart. Returns (X,Y,Z) kit indices.
+    """Map the model's colors onto the kit by rank, not by distance: cluster
+    the cell colors (one cluster per kit color), give the most saturated
+    cluster the kit's most saturated color, and the rest by lightness
+    (lightest -> white, darkest -> black). This keeps walls, roof and trim
+    apart even on a dark model. Returns (X,Y,Z) kit color indices.
     """
     out = np.zeros(occupancy.shape, dtype=np.int64)
     pts = colors[occupancy].astype(np.float64)
@@ -96,8 +94,8 @@ def _rank_colors(
     if len(by_light) == len(kit_rest):
         mapping.update(zip(by_light, kit_rest))
     else:
-        # Fewer clusters than kit colors: each to the kit color nearest in
-        # lightness, keeping lighter clusters on lighter-or-equal kit colors
+        # Fewer clusters than kit colors: each goes to the kit color
+        # closest in lightness
         for c in by_light:
             mapping[c] = min(kit_rest, key=lambda i: abs(_luma(palette[i]) - _luma(centers[c])))
 
@@ -348,8 +346,7 @@ def run_brick_optimization(
     except RuntimeError as e:
         return fail(str(e))
 
-    # Whatever still floats can't be built (e.g. a one-stud eave beside a
-    # wall of another color): leave it out and report it
+    # Pieces that still float can't be built: leave them out, report the count
     dropped = 0
     if settings.drop_loose and loose.any():
         dropped = int(loose.sum())

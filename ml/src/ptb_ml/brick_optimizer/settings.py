@@ -14,7 +14,7 @@ CATALOG_20: tuple[tuple[int, int, int], ...] = (
     (2, 2, 1), (2, 4, 1), (2, 6, 1), (2, 8, 1),
 )
 
-## The kit's colors, as names in brickification/colors.py::BRICK_COLORS
+## Kit colors for bricks, as names from BRICK_COLORS
 KIT_COLORS: tuple[str, ...] = ("White", "Black", "Red")
 
 

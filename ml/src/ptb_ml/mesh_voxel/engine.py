@@ -42,9 +42,8 @@ def _load_meshes(
 
 
 def _drop_ground_planes(meshes: list[trimesh.Trimesh]) -> list[trimesh.Trimesh]:
-    """Remove flat meshes at the bottom that are much wider than the rest:
-    the lawn or ground plane many downloaded models sit on. Left in, it sets
-    the model's size and the house comes out tiny."""
+    """Remove flat meshes at the bottom that are much wider than the rest
+    (a ground plane). Left in, it would set the model's size."""
 
     if len(meshes) < 2:
         return meshes
@@ -225,14 +224,11 @@ def _fill(surface: np.ndarray) -> np.ndarray:
 def _hollow(
     solid: np.ndarray, wall: int, plate_ratio: float, floor: bool
 ) -> np.ndarray:
-    """Keep cells within `wall` studs of open air, measured as true 3D
-    distance (a plate is plate_ratio studs tall).
-
-    Measuring across the slope, not only sideways, keeps sloped roofs thick
-    enough that each step overlaps the one below and they lock together.
-    The extra half stud keeps the diagonal neighbour on a 45-degree step.
-    With floor=False the ground counts as material, so the bottom stays
-    open for a base plate.
+    """Keep cells within `wall` studs of open air, measured as 3D distance
+    (a plate is plate_ratio studs tall), so sloped roofs stay thick enough
+    for each step to overlap the one below. The extra half stud keeps the
+    diagonal neighbour on a 45-degree step. With floor=False the ground
+    counts as material, leaving the bottom open for a base plate.
     """
     X, Y, Z = solid.shape
     padded = np.zeros((X + 2, Y + 2, Z + 2), dtype=bool)
