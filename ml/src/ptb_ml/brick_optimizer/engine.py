@@ -104,23 +104,33 @@ def _rank_colors(
 
 
 def _smooth_colors(
-    color_idx: np.ndarray, occupancy: np.ndarray, n_colors: int, rounds: int
+    color_idx: np.ndarray, occupancy: np.ndarray, n_colors: int, rounds: int,
+    top_max_same: int = 1,
 ) -> np.ndarray:
     """Majority filter over each cell and its occupied neighbours (3x3x3,
     counted in brick courses), so speckles from textures and material seams
-    don't split walls into many small parts."""
+    don't split walls into many small parts.
+
+    Cells with open air above them (the roof and other top surfaces) only
+    change when they are strays, with at most `top_max_same` neighbours of
+    their own color; otherwise the wall below would outvote a thin roof.
+    """
 
     X, Y, Z = occupancy.shape
     if rounds <= 0 or Y % 3:
         return color_idx
     occ = occupancy[:, ::3, :]
     lab = color_idx[:, ::3, :].copy()
+    air_above = np.concatenate([~occ[:, 1:], np.ones_like(occ[:, :1])], axis=1)
+    top = occ & air_above
     for _ in range(rounds):
-        votes = np.stack([
-            ndimage.uniform_filter(((lab == c) & occ).astype(np.float64), size=3, mode="constant")
+        counts = np.stack([
+            np.rint(ndimage.uniform_filter(((lab == c) & occ).astype(np.float64), size=3, mode="constant") * 27)
             for c in range(n_colors)
         ])
-        lab = np.where(occ, votes.argmax(0), lab)
+        own = np.take_along_axis(counts, lab[None], 0)[0] - 1        # same-color neighbours
+        change = occ & np.where(top, own <= top_max_same, True)
+        lab = np.where(change, counts.argmax(0), lab)
     return np.repeat(lab, 3, axis=1)
 
 

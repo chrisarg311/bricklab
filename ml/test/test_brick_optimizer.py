@@ -138,3 +138,14 @@ def test_smoothing_removes_speckles(tmp_path):
     assert any(tuple(c) == RED for c in b[:, 6:9])
     _, b = _run(tmp_path, occ, colors, color_smoothing=1)
     assert {tuple(c) for c in b[:, 6:9]} == {WHITE}
+
+
+def test_smoothing_keeps_a_thin_roof(tmp_path):
+    # A white block with a one-course red roof on top: the roof has open air
+    # above it, so the white below must not repaint it
+    occ = np.ones((8, 9, 8), bool)
+    colors = np.full(occ.shape + (3,), WHITE, np.uint8)
+    colors[:, 6:9] = RED
+    _, b = _run(tmp_path, occ, colors, color_smoothing=2)
+    top = [tuple(rgb) for _, y, _, _, _, h, *rgb in b if y + h == 9]
+    assert top and set(top) == {RED}
