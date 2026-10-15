@@ -180,10 +180,10 @@ def _surface_grid(
     mesh_ids: np.ndarray,
     weights: np.ndarray,
     shape: tuple[int, int, int],
-) -> tuple[np.ndarray, np.ndarray]:
-    """Bin points into cells. Each cell takes the color of the mesh with the
-    most surface in it, averaged over that mesh's points only, so cells on
-    a border between materials don't come out as a blend of both."""
+) -> tuple[np.ndarray, dict]:
+    """Bin points into cells. Returns the surface cells and, per cell and per
+    mesh, the color vote, point count, color sum and position sum, which
+    _cell_colors uses to pick each cell's color."""
 
     idx = np.floor(points).astype(np.int64)
     idx = np.clip(idx, 0, np.array(shape) - 1)
@@ -195,18 +195,49 @@ def _surface_grid(
     vote = np.bincount(key, weights=weights, minlength=size * n_mesh).reshape(size, n_mesh)
     count = np.bincount(key, minlength=size * n_mesh).reshape(size, n_mesh)
     color_sum = np.zeros((size * n_mesh, 3), dtype=np.float64)
+    pos_sum = np.zeros((size * n_mesh, 3), dtype=np.float64)
     np.add.at(color_sum, key, colors)
-    color_sum = color_sum.reshape(size, n_mesh, 3)
+    np.add.at(pos_sum, key, points)
+    stats = {
+        "vote": vote, "count": count,
+        "color_sum": color_sum.reshape(size, n_mesh, 3),
+        "pos_sum": pos_sum.reshape(size, n_mesh, 3),
+    }
+    return (count.sum(1) > 0).reshape(shape), stats
 
-    surface = count.sum(1) > 0
+
+def _cell_colors(stats: dict, surface: np.ndarray, solid: np.ndarray) -> np.ndarray:
+    """Color each surface cell by the material seen from outside.
+
+    Where several meshes share a cell (a wall face with a chimney just behind
+    it, a roof edge over a wall), the one lying furthest toward the cell's
+    open-air side wins, among meshes with a fair share of the cell's surface.
+    Cells with no open-air side take the mesh with the most surface.
+    """
+    shape = surface.shape
+    vote, count = stats["vote"], stats["count"]
+    rows = np.arange(vote.shape[0])
     best = vote.argmax(1)
-    rows = np.arange(size)
-    cell_colors = color_sum[rows, best] / np.maximum(count[rows, best], 1)[:, None]
-    cell_colors[~surface] = 0
-    return (
-        surface.reshape(shape),
-        cell_colors.reshape(shape + (3,)).round().clip(0, 255).astype(np.uint8),
-    )
+
+    # Direction toward open air: sum of the axis directions to empty neighbours
+    padded = np.pad(solid, 1, constant_values=False)
+    out = np.zeros(shape + (3,))
+    for axis in range(3):
+        for step in (-1, 1):
+            nb = np.roll(padded, -step, axis=axis)[1:-1, 1:-1, 1:-1]
+            out[..., axis] += step * ~nb
+    out = out.reshape(-1, 3)
+    has_out = np.abs(out).sum(1) > 0
+
+    mean_pos = stats["pos_sum"] / np.maximum(count, 1)[..., None]
+    reach = np.einsum("cmk,ck->cm", mean_pos, out)
+    eligible = vote >= 0.25 * vote.max(1, keepdims=True)
+    reach = np.where(eligible & (count > 0), reach, -np.inf)
+    best = np.where(has_out, reach.argmax(1), best)
+
+    cell = stats["color_sum"][rows, best] / np.maximum(count[rows, best], 1)[:, None]
+    cell[~surface.reshape(-1)] = 0
+    return cell.reshape(shape + (3,)).round().clip(0, 255).astype(np.uint8)
 
 
 def _fill(surface: np.ndarray) -> np.ndarray:
@@ -282,9 +313,10 @@ def run_mesh_voxelization(
     log.info(f"Grid: {shape[0]}x{shape[1]}x{shape[2]} (studs x plates x studs)")
 
     points, colors, mesh_ids, weights = _sample_surface(meshes, settings)
-    surface, surface_colors = _surface_grid(points, colors, mesh_ids, weights, shape)
+    surface, cell_stats = _surface_grid(points, colors, mesh_ids, weights, shape)
 
     solid = _fill(surface) if settings.fill_interior else surface.copy()
+    surface_colors = _cell_colors(cell_stats, surface, solid)
     plate_ratio = settings.plate_size_m / settings.stud_size_m
     if settings.snap_to_courses:
         # Work in whole bricks: round, hollow per course, then expand back
