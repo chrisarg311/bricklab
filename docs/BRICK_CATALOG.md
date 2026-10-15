@@ -35,25 +35,37 @@ these by rank: its most saturated color becomes red, and the rest go by lightnes
 
 ## How often each shape is used
 
-Totals over four test houses at 16 studs wide (578 bricks, base plates not counted). "Share of volume" is how much
+Totals over four test houses at 16 studs wide (570 bricks, base plates not counted). "Share of volume" is how much
 of the house each shape builds.
 
 | Brick | Count | Share of bricks | Share of volume |
 |---|---|---|---|
-| 2×8 | 105 | 18% | 42% |
-| 2×6 | 45 | 8% | 13% |
-| 2×4 | 45 | 8% | 9% |
-| 2×3 | 53 | 9% | 8% |
-| 1×8 | 36 | 6% | 7% |
-| 1×3 | 90 | 16% | 7% |
-| 1×4 | 46 | 8% | 5% |
-| 1×2 | 63 | 11% | 3% |
-| 1×6 | 20 | 3% | 3% |
-| 2×2 | 22 | 4% | 2% |
-| 1×1 | 53 | 9% | 1% |
+| 2×8 | 92 | 16% | 37% |
+| 2×6 | 58 | 10% | 17% |
+| 2×4 | 44 | 8% | 9% |
+| 1×8 | 40 | 7% | 8% |
+| 2×3 | 50 | 9% | 7% |
+| 1×3 | 82 | 14% | 6% |
+| 1×4 | 54 | 9% | 5% |
+| 1×6 | 26 | 5% | 4% |
+| 2×2 | 27 | 5% | 3% |
+| 1×2 | 45 | 8% | 2% |
+| 1×1 | 52 | 9% | 1% |
 
 The large bricks (2×8, 2×6, 2×4, 1×8) build about 70% of the volume across the test houses. Small bricks (1×1, 1×2, 1×3) are many in
 number but fill gaps at windows, doors, color edges and roof steps.
+
+Pieces per house, including the base plate:
+
+| House | 16 studs | 20 studs | 24 studs |
+|---|---|---|---|
+| Simple low-poly house | 120 | 209 | 329 |
+| House (Fishboe) | 173 | 319 | 348 |
+| Halloween house | 233 | 418 | 549 |
+| Carlos's photo-to-model output | 48 | 75 | 118 |
+
+Larger sizes keep more detail (window frames, door trim, steps) but use more bricks; 16 studs keeps every test
+house under 300 pieces.
 
 ## Reference
 
