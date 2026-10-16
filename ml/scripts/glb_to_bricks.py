@@ -56,17 +56,21 @@ def _settings(shapes) -> BrickificationSettings:
     )
 
 
-def part_name(w: int, d: int, h: int) -> str:
+def part_name(w: int, d: int, h: int, roof_tile: bool = False) -> str:
     """Rotations are the same physical part: 1x6 and 6x1 are both '1x6'."""
     a, b = sorted((w, d))
+    if roof_tile:
+        return f"{a}x{b} roof tile 45°"
     if h == 1 and a >= 16:
         return f"{a}x{b} base plate"
     return f"{a}x{b} {'brick' if h == 3 else 'plate'}"
 
 
-def _report(bricks: np.ndarray, seconds: float) -> dict:
-    parts = Counter(part_name(*map(int, b[3:6])) for b in bricks)
-    colored = {(part_name(*map(int, b[3:6])), tuple(map(int, b[6:9]))) for b in bricks}
+def _report(bricks: np.ndarray, seconds: float, kind: np.ndarray | None = None) -> dict:
+    kind = np.zeros(len(bricks), dtype=bool) if kind is None else kind.astype(bool)
+    names = [part_name(*map(int, b[3:6]), roof_tile=k) for b, k in zip(bricks, kind)]
+    parts = Counter(names)
+    colored = {(n, tuple(map(int, b[6:9]))) for n, b in zip(names, bricks)}
     cells = int((bricks[:, 3] * bricks[:, 4] * bricks[:, 5]).sum()) if len(bricks) else 0
     ones = parts.get("1x1 plate", 0)
     return {
@@ -115,8 +119,10 @@ def _optimized(args, out: Path) -> dict:
     )
     if not res.ok:
         raise SystemExit(res.error)
-    bricks = np.load(res.bricks_path)["bricks"]
-    report = _report(bricks, time.perf_counter() - t)
+    data = np.load(res.bricks_path)
+    bricks = data["bricks"]
+    report = _report(bricks, time.perf_counter() - t, data["kind"])
+    report["order"] = json.loads(res.bom_path.read_text())["order"]
     report["dropped_loose"] = res.num_dropped
     report["support_cells"] = res.num_support_cells
     (out / "report.json").write_text(json.dumps(report, indent=2))

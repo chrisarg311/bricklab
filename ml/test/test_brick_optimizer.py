@@ -149,3 +149,53 @@ def test_smoothing_keeps_a_thin_roof(tmp_path):
     _, b = _run(tmp_path, occ, colors, color_smoothing=2)
     top = [tuple(rgb) for _, y, _, _, _, h, *rgb in b if y + h == 9]
     assert top and set(top) == {RED}
+
+
+def _stepped_roof(color):
+    # Two courses: 6 x 4 studs, then 4 x 4 on top (one stud in from each x side)
+    occ = np.zeros((6, 6, 4), bool)
+    occ[:, 0:3] = True
+    occ[1:5, 3:6] = True
+    colors = np.full(occ.shape + (3,), color, np.uint8)
+    return occ, colors
+
+
+def test_roof_tiles_on_red_step_edges(tmp_path):
+    occ, colors = _stepped_roof(RED)
+    res, _ = _run(tmp_path, occ, colors, roof_tiles=(4, 2))
+    d = np.load(res.bricks_path)
+    b, kind, facing = d["bricks"], d["kind"], d["facing"]
+    lower = sorted((tuple(int(v) for v in r[:6]), int(f)) for r, k, f in zip(b, kind, facing)
+                   if k == 1 and r[1] == 0)
+    # One 2x4 tile per step edge in the lower course, sloping outward (-x and +x)
+    assert lower == [((0, 0, 0, 2, 4, 3), 0), ((4, 0, 0, 2, 4, 3), 1)]
+    # The top course has open air above everywhere, so it is all roof tiles
+    assert kind[b[:, 1] == 3].all()
+
+
+def test_no_roof_tiles_in_other_colors(tmp_path):
+    occ, colors = _stepped_roof(WHITE)
+    res, _ = _run(tmp_path, occ, colors, roof_tiles=(4, 2))
+    assert not np.load(res.bricks_path)["kind"].any()
+
+
+def test_roof_tiles_off_by_default(tmp_path):
+    occ, colors = _stepped_roof(RED)
+    res, _ = _run(tmp_path, occ, colors)
+    assert not np.load(res.bricks_path)["kind"].any()
+
+
+def test_parts_list_has_store_ids_and_prices(tmp_path):
+    import json
+    res, _ = _run(tmp_path, np.ones((4, 3, 4), bool))               # two white 2x4 bricks
+    bom = json.loads(res.bom_path.read_text())
+    (entry,) = bom["entries"]
+    assert (entry["part"], entry["quantity"], entry["design_id"], entry["element_id"]) == (
+        "2x4 brick", 2, "3001", "300101")
+    assert entry["line_total"] == 0.42 and bom["order"]["total"] == 0.42
+
+
+def test_single_red_model_stays_red(tmp_path):
+    occ = np.ones((4, 3, 4), bool)
+    _, b = _run(tmp_path, occ, np.full(occ.shape + (3,), RED, np.uint8))
+    assert {tuple(c) for c in b[:, 6:9]} == {RED}

@@ -72,6 +72,14 @@ class BrickOptSettings:
     ## Not limited to the kit colors: those apply to bricks only
     base_plate_color: str= "Green"
 
+    ## 45-degree roof tiles (2 studs deep, these lengths, e.g. (4, 2)) on roof
+    ## step edges, only in these kit colors. Off by default: roofs use plain
+    ## bricks. Each tile is cheaper than a brick by `roof_tile_bonus`: at 60,
+    ## two tiles are worth one extra part
+    roof_tiles: tuple[int, ...]= ()
+    roof_tile_colors: tuple[str, ...]= ("Red",)
+    roof_tile_bonus: int= 60
+
     time_limit_s: float= 2.0
     workers: int= 8
 
