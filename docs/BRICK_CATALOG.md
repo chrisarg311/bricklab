@@ -1,7 +1,8 @@
 # Brick catalog
 
 The bricks the optimizer (`ml/src/ptb_ml/brick_optimizer`) is allowed to use. The list is defined in code as
-`CATALOG_20` in `brick_optimizer/settings.py`; this page explains it and shows how often each shape is used.
+`CATALOG_20` in `brick_optimizer/settings.py`; this page explains it, shows how often each shape is used, and
+lists the store part numbers and prices used to price a kit.
 
 ## Sizes
 
@@ -22,8 +23,8 @@ A shape written W×D is W studs by D studs. A turned brick (2×4 vs 4×2) is the
 | 1×1, 1×2, 1×4, 1×6, 1×8 | Plate (1 plate tall) | Not yet (see below) |
 | 2×2, 2×4, 2×6, 2×8 | Plate (1 plate tall) | Not yet (see below) |
 
-Plus one **base plate** under every model, counted as one part: the smallest of 16×16, 32×32 or 48×48 studs that
-fits the model.
+Plus one **base plate** under every model, counted as one part: 16×16 or 32×32 studs, whichever is the smallest
+that fits the model (48×48 is used only if neither fits, and isn't sold in the store).
 
 The plates are unused because the voxel step rounds every height to whole brick courses, so every layer is filled
 with full-height bricks. Those 9 plate slots are free for other parts later, for example roof slopes or corner bricks.
@@ -67,11 +68,57 @@ Pieces per house, including the base plate:
 Larger sizes keep more detail (window frames, door trim, steps) but use more bricks; 16 studs keeps every test
 house under 300 pieces.
 
+## Ordering from the store
+
+Every part maps to the Pick a Brick store (https://www.lego.com/en-us/pick-and-build/pick-a-brick), so a kit can
+be ordered part by part. The **store ID** (design ID) is the shape: searching it in the store finds the part. The
+**element ID** is the shape in one color, which is the item that is actually ordered. The data lives in
+`ml/src/ptb_ml/brick_optimizer/store_parts.py`, and each `bom.json` line carries the store ID, element ID, unit
+price and line total, plus an order total.
+
+Prices are US dollars each and stock is as read from the US store on **2026-10-16**; both change over time.
+
+| Part | Store ID | White | Black | Red (Bright Red) | Price each |
+|---|---|---|---|---|---|
+| Brick 1×1 | 3005 | 300501 | 300526 | 300521 | $0.07 |
+| Brick 1×2 | 3004 | 300401 | 300426 | 300421 | $0.10 |
+| Brick 1×3 | 3622 | 362201 | 362226 | 362221 | $0.14 |
+| Brick 1×4 | 3010 | 301001 | 301026 | 301021 | $0.15 |
+| Brick 1×6 | 3009 | 300901 | 300926 | 300921 | $0.24 |
+| Brick 1×8 | 3008 | 300801 | 300826 | 300821 | $0.26 |
+| Brick 2×2 | 3003 | 300301 | 300326 | 300321 | $0.13 |
+| Brick 2×3 | 3002 | 300201 | 300226 | 300221 | $0.17 |
+| Brick 2×4 | 3001 | 300101 | 300126 | 300121 | $0.21 |
+| Brick 2×6 | 44237 | 4181142 | 4181144 | 4181138 | $0.31 |
+| Brick 2×8 | 93888 | 6033776 | 6037390 | 6036408 (out of stock) | $0.39 |
+| Plate 1×1 | 3024 | 302401 | 302426 | 302421 | $0.06 |
+| Plate 1×2 | 3023 | 302301 | 302326 | 302321 | $0.08 |
+| Plate 1×4 | 3710 | 371001 | 371026 | 371021 | $0.11 |
+| Plate 1×6 | 3666 | 366601 | 366626 | 366621 | $0.16 |
+| Plate 1×8 | 3460 | 346001 | 346026 | 346021 | $0.18 |
+| Plate 2×2 | 3022 | 302201 | 302226 | 302221 | $0.09 |
+| Plate 2×4 | 3020 | 302001 | 302026 | 302021 | $0.14 |
+| Plate 2×6 | 3795 | 379501 | 379526 | 379521 | $0.19 |
+| Plate 2×8 | 3034 | 303401 | 303426 | 303421 | $0.28 |
+
+| Base plate (green) | Store ID | Element ID | Color in store | Price each |
+|---|---|---|---|---|
+| 16×16 (PLATE 16X16) | 91405 | 4611777 | Bright Green | $3.29 |
+| 32×32 (BASE PLATE 32X32) | 3811 | 4219692 | Dark Green | $10.35 |
+
+Out-of-stock parts are kept in the layout and flagged in the parts list, so the layout doesn't depend on that
+day's stock.
+
+**Roof tiles (off).** The optimizer can place 45° roof tiles on roof step edges (`roof_tiles` in
+`brick_optimizer/settings.py`), but this is turned off: roofs use plain bricks. If it's turned on, note that
+ROOF TILE 2X8/45° (4445) is sold only in Black and Medium Stone Grey; red is available as ROOF TILE 2X4/45° (3037,
+element 303721, $0.17) and 2X2/45° (3039, element 303921, $0.11).
+
 ## Reference
 
 Shapes and sizes follow the standard parts listed in the public BrickLink catalog
-(https://www.bricklink.com/v2/search.page?q=brick#T=P). It was used only as a reference for which shapes are
-common; no data from it is copied into this repo. The catalog itself is not open source.
+(https://www.bricklink.com/v2/search.page?q=brick#T=P), used only as a reference for which shapes are common.
+Store IDs, element IDs and prices come from the Pick a Brick store as listed above.
 
 ## Changing the catalog
 
