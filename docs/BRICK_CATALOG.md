@@ -20,14 +20,15 @@ A shape written W×D is W studs by D studs. A turned brick (2×4 vs 4×2) is the
 |---|---|---|
 | 1×1, 1×2, 1×3, 1×4, 1×6, 1×8 | Brick (3 plates tall) | Yes |
 | 2×2, 2×3, 2×4, 2×6, 2×8 | Brick (3 plates tall) | Yes |
-| 1×1, 1×2, 1×4, 1×6, 1×8 | Plate (1 plate tall) | Not yet (see below) |
-| 2×2, 2×4, 2×6, 2×8 | Plate (1 plate tall) | Not yet (see below) |
+| 1×1, 1×2, 1×4, 1×6, 1×8 | Plate (1 plate tall), mosaic style | Not in 3D builds (see below) |
+| 2×2, 2×4, 2×6, 2×8 | Plate (1 plate tall), mosaic style | Not in 3D builds (see below) |
 
 Plus one **base plate** under every model, counted as one part: 16×16 or 32×32 studs, whichever is the smallest
 that fits the model (48×48 is used only if neither fits, and isn't sold in the store).
 
-The plates are unused because the voxel step rounds every height to whole brick courses, so every layer is filled
-with full-height bricks. Those 9 plate slots are free for other parts later, for example roof slopes or corner bricks.
+The 9 plates are for the mosaic style: a flat picture, one plate tall, laid on the base plate. 3D builds don't use
+them, because the voxel step rounds every height to whole brick courses, so every layer is filled with full-height
+bricks.
 
 ## Colors
 
@@ -108,11 +109,6 @@ Prices are US dollars each and stock is as read from the US store on **2026-10-1
 
 Out-of-stock parts are kept in the layout and flagged in the parts list, so the layout doesn't depend on that
 day's stock.
-
-**Roof tiles (off).** The optimizer can place 45° roof tiles on roof step edges (`roof_tiles` in
-`brick_optimizer/settings.py`), but this is turned off: roofs use plain bricks. If it's turned on, note that
-ROOF TILE 2X8/45° (4445) is sold only in Black and Medium Stone Grey; red is available as ROOF TILE 2X4/45° (3037,
-element 303721, $0.17) and 2X2/45° (3039, element 303921, $0.11).
 
 ## Reference
 

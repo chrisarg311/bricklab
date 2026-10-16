@@ -57,10 +57,6 @@ PARTS: dict[tuple[str, int, int], dict] = {
                       "elements": {"White": ("379501", 0.19, True), "Black": ("379526", 0.19, True), "Red": ("379521", 0.19, True)}},
     ("plate", 2, 8): {"design_id": "3034", "name": "PLATE 2X8",
                       "elements": {"White": ("303401", 0.28, True), "Black": ("303426", 0.28, True), "Red": ("303421", 0.28, True)}},
-    ("roof_tile_45", 2, 2): {"design_id": "3039", "name": "ROOF TILE 2X2/45°",
-                             "elements": {"White": ("303901", 0.11, True), "Black": ("303926", 0.11, True), "Red": ("303921", 0.11, True)}},
-    ("roof_tile_45", 2, 4): {"design_id": "3037", "name": "ROOF TILE 2X4/45°",
-                             "elements": {"White": ("303701", 0.17, True), "Black": ("303726", 0.17, True), "Red": ("303721", 0.17, True)}},
     # Green base plates: the 16x16 is sold in Bright Green, the 32x32 only in Dark Green
     ("base_plate", 16, 16): {"design_id": "91405", "name": "PLATE 16X16",
                              "elements": {"Green": ("4611777", 3.29, True)}},

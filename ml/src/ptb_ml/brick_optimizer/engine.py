@@ -143,11 +143,6 @@ def _footprints(settings: BrickOptSettings, h: int) -> list[tuple[int, int]]:
     return sorted(out, key=lambda s: (-s[0] * s[1], s))
 
 
-BRICK, ROOF_TILE = 0, 1
-# Roof tile facing: the side its slope runs down to (-x, +x, -z, +z)
-FACING = ((-1, 0), (1, 0), (0, -1), (0, 1))
-
-
 def _window_full(mask: np.ndarray, w: int, d: int) -> np.ndarray:
     """True at (x, z) where mask[x:x+w, z:z+d] is entirely True."""
     X, Z = mask.shape
@@ -159,39 +154,6 @@ def _window_full(mask: np.ndarray, w: int, d: int) -> np.ndarray:
     return total == w * d
 
 
-def _roof_tile_spots(
-    mask: np.ndarray, roof: dict, lengths: tuple[int, ...]
-) -> list[tuple[int, int, int, int, int]]:
-    """Where a 45-degree roof tile (2 studs deep, `length` long) fits in a
-    brick course: on cells of one color, with its low row on a roof step
-    edge, meaning open air above that row and outside the model beyond it.
-    Returns [(x, z, w, d, facing)]."""
-
-    X, Z = mask.shape
-    course, air = roof["course"], roof["air_above"]
-
-    def outside(xs, zs):
-        inside = (xs >= 0) & (xs < X) & (zs >= 0) & (zs < Z)
-        return ~inside | ~course[np.clip(xs, 0, X - 1), np.clip(zs, 0, Z - 1)]
-
-    spots = []
-    for length in lengths:
-        for facing, (fx, fz) in enumerate(FACING):
-            w, d = (2, length) if fx else (length, 2)
-            for x, z in np.argwhere(_window_full(mask, w, d)):
-                if fx:      # low row is the x column on the facing side
-                    lx = x if fx < 0 else x + 1
-                    zs = np.arange(z, z + length)
-                    low = air[lx, zs].all() and outside(np.full(length, lx + fx), zs).all()
-                else:
-                    lz = z if fz < 0 else z + 1
-                    xs = np.arange(x, x + length)
-                    low = air[xs, lz].all() and outside(xs, np.full(length, lz + fz)).all()
-                if low:
-                    spots.append((int(x), int(z), w, d, facing))
-    return spots
-
-
 def _solve_layer(
     cells: np.ndarray,
     color_idx: np.ndarray,
@@ -199,55 +161,42 @@ def _solve_layer(
     below: np.ndarray | None,
     pieces: list,
     settings: BrickOptSettings,
-    roof: dict | None = None,
-) -> tuple[list[tuple[int, int, int, int, int, int, int]], bool]:
+) -> tuple[list[tuple[int, int, int, int, int]], bool]:
     """Exact cover of `cells` (X,Z) with footprints of one color each.
 
     below: owner ids of the layer underneath (-1 = empty), or None at the
     ground; pieces: the pieces placed so far, indexed by those ids.
-    roof: for a brick course, where roof tiles may go: `course` (occupied
-    cells of this course), `air_above` (nothing in the course above) and
-    `colors` (kit color indices that may use roof tiles).
-    Returns ([(x, z, w, d, links_below, kind, facing)], proven_optimal).
+    Returns ([(x, z, w, d, links_below)], proven_optimal).
     """
     X, Z = cells.shape
-    cands: list[tuple[int, int, int, int, int, int, int]] = []
+    cands: list[tuple[int, int, int, int, int]] = []
     costs: list[int] = []
-
-    def base_cost(x, z, w, d):
-        if below is None:
-            return 1, 0
-        ids = np.unique(below[x:x + w, z:z + d])
-        links = int((ids >= 0).sum())
-        cost = 0
-        if links == 0:
-            cost += settings.unsupported_cost
-        cost -= settings.link_bonus * min(max(links - 1, 0), settings.link_cap)
-        if links == 1:
-            px, _, pz, pw, pd, *_ = pieces[ids[ids >= 0][0]]
-            if (px, pz, pw, pd) == (x, z, w, d):
-                cost += settings.stacked_cost
-        return links, cost
-
     for c in np.unique(color_idx[cells]):
         m = cells & (color_idx == c)
         for w, d in footprints:
             for x, z in np.argwhere(_window_full(m, w, d)):
-                links, cost = base_cost(x, z, w, d)
+                if below is None:
+                    links, cost = 1, 0
+                else:
+                    ids = np.unique(below[x:x + w, z:z + d])
+                    links = int((ids >= 0).sum())
+                    cost = 0
+                    if links == 0:
+                        cost += settings.unsupported_cost
+                    cost -= settings.link_bonus * min(max(links - 1, 0), settings.link_cap)
+                    if links == 1:
+                        px, _, pz, pw, pd, *_ = pieces[ids[ids >= 0][0]]
+                        if (px, pz, pw, pd) == (x, z, w, d):
+                            cost += settings.stacked_cost
                 if w * d == 1:
                     cost += settings.one_by_one_cost
-                cands.append((int(x), int(z), w, d, links, BRICK, 0))
+                cands.append((int(x), int(z), w, d, links))
                 costs.append(settings.piece_cost + cost)
-        if roof is not None and int(c) in roof["colors"]:
-            for x, z, w, d, facing in _roof_tile_spots(m, roof, settings.roof_tiles):
-                links, cost = base_cost(x, z, w, d)
-                cands.append((x, z, w, d, links, ROOF_TILE, facing))
-                costs.append(settings.piece_cost + cost - settings.roof_tile_bonus)
 
     model = cp_model.CpModel()
     use = [model.NewBoolVar("") for _ in cands]
     covering: dict[tuple[int, int], list] = {}
-    for v, (x, z, w, d, *_) in zip(use, cands):
+    for v, (x, z, w, d, _) in zip(use, cands):
         for i in range(x, x + w):
             for k in range(z, z + d):
                 covering.setdefault((i, k), []).append(v)
@@ -265,19 +214,15 @@ def _solve_layer(
     return chosen, status == cp_model.OPTIMAL
 
 
-def _part_kind(w: int, d: int, h: int, kind: int) -> str:
-    if kind == ROOF_TILE:
-        return "roof_tile_45"
+def _part_kind(w: int, d: int, h: int) -> str:
     if h == 1 and min(w, d) >= 16:
         return "base_plate"
     return "brick" if h == 3 else "plate"
 
 
-def _part_name(w: int, d: int, h: int, kind: int = BRICK) -> str:
+def _part_name(w: int, d: int, h: int) -> str:
     a, b = sorted((w, d))
-    label = {"roof_tile_45": "roof tile 45°", "base_plate": "base plate"}.get(
-        _part_kind(w, d, h, kind), "brick" if h == 3 else "plate")
-    return f"{a}x{b} {label}"
+    return f"{a}x{b} {_part_kind(w, d, h).replace('_', ' ')}"
 
 
 def _tile(
@@ -285,21 +230,20 @@ def _tile(
     color_idx: np.ndarray,
     settings: BrickOptSettings,
 ) -> tuple[list[tuple[int, int, int, int, int, int, int]], np.ndarray, int]:
-    """Tile the whole grid bottom-up. Returns (pieces as x y z w d h color
-    kind facing, owner grid of piece ids, layers not proven optimal)."""
+    """Tile the whole grid bottom-up. Returns (pieces as x y z w d h color,
+    owner grid of piece ids, layers not proven optimal)."""
 
     X, Y, Z = occupancy.shape
     brick_fp = _footprints(settings, 3)
     plate_fp = _footprints(settings, 1)
     owner = np.full((X, Y, Z), -1, dtype=np.int32)
-    pieces: list[tuple[int, ...]] = []
+    pieces: list[tuple[int, int, int, int, int, int, int]] = []
     not_optimal = 0
-    roof_colors = {settings.colors.index(c) for c in settings.roof_tile_colors if c in settings.colors}
 
     def place(layer, y: int, h: int, colors_2d: np.ndarray) -> None:
-        for x, z, w, d, _, kind, facing in layer:
+        for x, z, w, d, _ in layer:
             owner[x:x + w, y:y + h, z:z + d] = len(pieces)
-            pieces.append((x, y, z, w, d, h, int(colors_2d[x, z]), kind, facing))
+            pieces.append((x, y, z, w, d, h, int(colors_2d[x, z])))
 
     # Bands of 3 plates: full-height bricks where a column is occupied and
     # one color through the band, plates for whatever is left
@@ -309,11 +253,7 @@ def _tile(
             full = occupancy[:, y0:y0 + 3, :].all(1) & (c[:, 0] == c[:, 1]) & (c[:, 1] == c[:, 2])
             if full.any():
                 below = owner[:, y0 - 1, :] if y0 > 0 else None
-                roof = None
-                if settings.roof_tiles and roof_colors:
-                    above = occupancy[:, y0 + 3, :] if y0 + 3 < Y else np.zeros((X, Z), bool)
-                    roof = {"course": occupancy[:, y0, :], "air_above": ~above, "colors": roof_colors}
-                layer, opt = _solve_layer(full, c[:, 0], brick_fp, below, pieces, settings, roof)
+                layer, opt = _solve_layer(full, c[:, 0], brick_fp, below, pieces, settings)
                 not_optimal += not opt
                 place(layer, y0, 3, c[:, 0])
         for y in range(y0, min(y0 + 3, Y)):
@@ -335,7 +275,7 @@ def _loose(pieces, owner: np.ndarray) -> np.ndarray:
         return np.zeros(0, dtype=bool)
     Y = owner.shape[1]
     rows, cols = [], []
-    for i, (x, y, z, w, d, h, *_) in enumerate(pieces):
+    for i, (x, y, z, w, d, h, _) in enumerate(pieces):
         if y + h < Y:
             above = np.unique(owner[x:x + w, y + h, z:z + d])
             above = above[above >= 0]
@@ -356,7 +296,7 @@ def _add_support(
 
     added = 0
     for i in np.flatnonzero(loose):
-        x, y, z, w, d, _, color, *_ = pieces[i]
+        x, y, z, w, d, _, color = pieces[i]
         if y == 0 or (owner[x:x + w, y - 1, z:z + d] >= 0).any():
             continue
         for cx in range(x, x + w):
@@ -437,9 +377,9 @@ def run_brick_optimization(
         need = max(X, Z)
         base_size = next((n for n in settings.base_plate_sizes if n >= need), need)
         ox, oz = (base_size - X) // 2, (base_size - Z) // 2
-        pieces = [(x + ox, y + 1, z + oz, w, d, h, c, k, f) for x, y, z, w, d, h, c, k, f in pieces]
+        pieces = [(x + ox, y + 1, z + oz, w, d, h, c) for x, y, z, w, d, h, c in pieces]
         # The base plate's color is outside the kit colors (bricks only)
-        pieces.insert(0, (0, 0, 0, base_size, base_size, 1, len(palette), BRICK, 0))
+        pieces.insert(0, (0, 0, 0, base_size, base_size, 1, len(palette)))
 
     by_name = {name: (r, g, b) for name, r, g, b in BRICK_COLORS}
     out_palette = np.vstack([palette, [by_name[settings.base_plate_color]]])
@@ -447,20 +387,13 @@ def run_brick_optimization(
     rgb = out_palette[[p[6] for p in pieces]] if pieces else np.zeros((0, 3), np.int32)
     brick_array = np.array([p[:6] for p in pieces], dtype=np.int32).reshape(-1, 6)
     brick_array = np.hstack([brick_array, rgb.astype(np.int32)])
-    np.savez_compressed(
-        bricks_path,
-        bricks=brick_array,                                           # x y z w d h r g b
-        kind=np.array([p[7] for p in pieces], dtype=np.int8),        # 0 brick/plate, 1 roof tile
-        facing=np.array([p[8] for p in pieces], dtype=np.int8),      # roof tile: index into FACING
-    )
+    np.savez_compressed(bricks_path, bricks=brick_array)
 
-    bom = Counter((_part_kind(p[3], p[4], p[5], p[7]), *sorted((p[3], p[4])), out_names[p[6]]) for p in pieces)
+    bom = Counter((*sorted(p[3:5]), p[5], out_names[p[6]]) for p in pieces)
     entries, total, missing, out_of_stock = [], 0.0, 0, 0
-    for (kind, a, b, color), n in bom.most_common():
-        h = 1 if kind in ("plate", "base_plate") else 3
-        entry = {"part": _part_name(a, b, h, ROOF_TILE if kind == "roof_tile_45" else BRICK),
-                 "color": color, "quantity": n}
-        store = store_line(kind, a, b, color)
+    for (w, d, h, color), n in bom.most_common():
+        entry = {"part": _part_name(w, d, h), "color": color, "quantity": n}
+        store = store_line(_part_kind(w, d, h), w, d, color)
         if store is None:
             missing += 1
         else:
@@ -472,7 +405,7 @@ def run_brick_optimization(
     bom_path.write_text(json.dumps({
         "job_id": req.job_id,
         "total_bricks": len(pieces),
-        "unique_parts": len({(k, a, b) for k, a, b, _ in bom}),
+        "unique_parts": len({e["part"] for e in entries}),
         "unique_entries": len(bom),
         "loose_pieces": int(loose.sum()),
         "dropped_loose_pieces": dropped,

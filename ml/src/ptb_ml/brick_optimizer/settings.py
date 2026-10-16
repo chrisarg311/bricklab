@@ -3,82 +3,52 @@ from dataclasses import dataclass, field
 
 from ..brickification.colors import BRICK_COLORS
 
-## The 20-part catalog: (w, d, h) with h in plates (3 = brick, 1 = plate).
-## Rotations are the same part and are added by the engine.
+## (w, d, h), h in plates. Rotations are added by the engine
 CATALOG_20: tuple[tuple[int, int, int], ...] = (
     # Bricks
     (1, 1, 3), (1, 2, 3), (1, 3, 3), (1, 4, 3), (1, 6, 3), (1, 8, 3),
     (2, 2, 3), (2, 3, 3), (2, 4, 3), (2, 6, 3), (2, 8, 3),
-    # Plates
+    # Plates, for the flat mosaic style
     (1, 1, 1), (1, 2, 1), (1, 4, 1), (1, 6, 1), (1, 8, 1),
     (2, 2, 1), (2, 4, 1), (2, 6, 1), (2, 8, 1),
 )
 
-## Kit colors for bricks, as names from BRICK_COLORS
 KIT_COLORS: tuple[str, ...] = ("White", "Black", "Red")
 
 
 @dataclass(frozen=True)
 class BrickOptSettings:
     """
-    Per-layer exact cover with OR-Tools CP-SAT. Each layer is tiled with
-    catalog parts so every occupied cell is covered once, by a part whose
-    cells all have the same kit color, at the lowest total cost.
+    Per-layer exact cover with OR-Tools CP-SAT: every occupied cell is
+    covered once, by a one-color catalog part, at the lowest total cost.
     """
     catalog: tuple[tuple[int, int, int], ...]= CATALOG_20
     colors: tuple[str, ...]= KIT_COLORS
 
-    ## "rank": the model's lightest colors -> white, darkest -> black, most
-    ## saturated -> red. "nearest": each cell to the closest kit color
+    ## "rank": lightest -> white, darkest -> black, most saturated -> red.
+    ## "nearest": closest kit color
     color_mapping: str= "rank"
-    ## A cluster needs at least this saturation (0-1) to be the accent color
     accent_min_saturation: float= 0.35
-    ## Model colors closer than this (RGB distance) count as one color
     merge_color_distance: float= 40.0
-
-    ## Rounds of majority filtering on the kit colors (0 = off)
     color_smoothing: int= 2
 
-    ## Cost per part; the main term, so fewer parts always wins
+    ## Solver costs. A part costs more than any bonus, so fewer parts wins
     piece_cost: int= 100
-    ## Reward per extra part underneath that this part locks together
-    ## (a running-bond wall), capped at link_cap
-    link_bonus: int= 10
+    link_bonus: int= 10            # per extra part locked underneath, up to link_cap
     link_cap: int= 2
-    ## Extra cost for 1x1 parts, and for parts with nothing underneath.
-    ## Unsupported costs more than a whole part, so the solver adds a part
-    ## to bridge an overhang rather than leave it floating
     one_by_one_cost: int= 20
-    unsupported_cost: int= 250
-    ## Extra cost for sitting exactly on a part of the same footprint: the
-    ## joints line up and the wall splits into separate towers. More than a
-    ## part, so the solver staggers joints even when that adds a part
-    stacked_cost: int= 150
+    unsupported_cost: int= 250     # more than a part: bridge overhangs
+    stacked_cost: int= 150         # same footprint right below: stagger joints
 
-    ## Rounds of "add support under loose pieces, re-solve". Needs the
-    ## `solid` grid saved by mesh_voxel; support only goes inside it
+    ## Support under loose pieces, at most max_support_plates deep
     repair_rounds: int= 3
-    ## Support only fills gaps down to material at most this deep (6 = two
-    ## brick courses), so it never builds pillars through a hollow house
     max_support_plates: int= 6
-    ## Leave out pieces that are still loose after repair
     drop_loose: bool= True
 
-    ## One square base plate under the whole model, counted as one part.
-    ## Smallest standard size that fits the footprint; if none fits, the
-    ## exact footprint size
+    ## Smallest size that fits the footprint; color is outside the kit colors
     base_plate: bool= True
     base_plate_sizes: tuple[int, ...]= (16, 32, 48)
-    ## Not limited to the kit colors: those apply to bricks only
     base_plate_color: str= "Green"
-
-    ## 45-degree roof tiles (2 studs deep, these lengths, e.g. (4, 2)) on roof
-    ## step edges, only in these kit colors. Off by default: roofs use plain
-    ## bricks. Each tile is cheaper than a brick by `roof_tile_bonus`: at 60,
-    ## two tiles are worth one extra part
-    roof_tiles: tuple[int, ...]= ()
-    roof_tile_colors: tuple[str, ...]= ("Red",)
-    roof_tile_bonus: int= 60
 
     time_limit_s: float= 2.0
     workers: int= 8
