@@ -34,37 +34,39 @@ bricks.
 
 Bricks come in **white, black and red** only. The base plate is **green**. Each model's own colors are mapped onto
 these by rank: its most saturated color becomes red, and the rest go by lightness (lightest white, darkest black).
+Small specks of color are cleaned up, but any brick you can see from outside keeps its color unless it is a lone
+speck; only bricks hidden inside the walls change color, so they can join into larger bricks.
 
 ## How often each shape is used
 
-Totals over four test houses at 16 studs wide (570 bricks, base plates not counted). "Share of volume" is how much
+Totals over four test houses at 16 studs wide (644 bricks, base plates not counted). "Share of volume" is how much
 of the house each shape builds.
 
 | Brick | Count | Share of bricks | Share of volume |
 |---|---|---|---|
-| 2×8 | 92 | 16% | 37% |
-| 2×6 | 58 | 10% | 17% |
-| 2×4 | 44 | 8% | 9% |
-| 1×8 | 40 | 7% | 8% |
-| 2×3 | 50 | 9% | 7% |
-| 1×3 | 82 | 14% | 6% |
-| 1×4 | 54 | 9% | 5% |
-| 1×6 | 26 | 5% | 4% |
-| 2×2 | 27 | 5% | 3% |
-| 1×2 | 45 | 8% | 2% |
-| 1×1 | 52 | 9% | 1% |
+| 2×8 | 91 | 14% | 36% |
+| 2×6 | 50 | 8% | 15% |
+| 2×4 | 43 | 7% | 9% |
+| 1×8 | 39 | 6% | 8% |
+| 1×3 | 92 | 14% | 7% |
+| 1×4 | 67 | 10% | 7% |
+| 1×6 | 34 | 5% | 5% |
+| 2×3 | 33 | 5% | 5% |
+| 1×2 | 83 | 13% | 4% |
+| 2×2 | 30 | 5% | 3% |
+| 1×1 | 82 | 13% | 2% |
 
-The large bricks (2×8, 2×6, 2×4, 1×8) build about 70% of the volume across the test houses. Small bricks (1×1, 1×2, 1×3) are many in
-number but fill gaps at windows, doors, color edges and roof steps.
+The large bricks (2×8, 2×6, 2×4, 1×8) build about two thirds of the volume across the test houses. Small bricks
+(1×1, 1×2, 1×3) are many in number but fill gaps at windows, doors, color edges and roof steps.
 
 Pieces per house, including the base plate:
 
 | House | 16 studs | 20 studs | 24 studs |
 |---|---|---|---|
-| Simple low-poly house | 120 | 209 | 329 |
-| House (Fishboe) | 173 | 319 | 348 |
-| Halloween house | 233 | 418 | 549 |
-| Carlos's photo-to-model output | 48 | 75 | 118 |
+| Simple low-poly house | 135 | 224 | 297 |
+| House (Fishboe) | 196 | 349 | 484 |
+| Halloween house | 267 | 462 | 592 |
+| Carlos's photo-to-model output | 50 | 77 | 118 |
 
 Larger sizes keep more detail (window frames, door trim, steps) but use more bricks; 16 studs keeps every test
 house under 300 pieces.

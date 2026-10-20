@@ -151,6 +151,27 @@ def test_smoothing_keeps_a_thin_roof(tmp_path):
     assert top and set(top) == {RED}
 
 
+def test_smoothing_keeps_a_wall_under_a_roof_overhang(tmp_path):
+    # A hollow white house, 2 studs thick walls, 3 courses tall, under a red
+    # roof course that overhangs by one stud: the wall's top course is seen
+    # from the sides, so the roof above and beside it must not repaint it
+    occ = np.zeros((10, 12, 10), bool)
+    occ[1:9, 0:9, 1:9] = True
+    occ[3:7, 0:9, 3:7] = False
+    occ[:, 9:12, :] = True
+    colors = np.full(occ.shape + (3,), WHITE, np.uint8)
+    colors[:, 9:12] = RED
+    _, b = _run(tmp_path, occ, colors, color_smoothing=2)
+    painted = np.zeros(occ.shape + (3,), int)
+    for x, y, z, w, d, h, *rgb in b:
+        painted[x:x + w, y:y + h, z:z + d] = rgb
+    outer = np.zeros(occ.shape, bool)
+    outer[[1, 8], 0:9, 1:9] = True
+    outer[1:9, 0:9, [1, 8]] = True
+    assert (painted[outer] == WHITE).all()
+    assert (painted[:, 9:12] == RED).all()
+
+
 def test_parts_list_has_store_ids_and_prices(tmp_path):
     import json
     res, _ = _run(tmp_path, np.ones((4, 3, 4), bool))               # two white 2x4 bricks

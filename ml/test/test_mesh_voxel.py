@@ -93,6 +93,21 @@ def test_snap_to_courses(tmp_path):
         assert occ.any(axis=(0, 2)).sum() == expected
 
 
+def test_courses_fill_one_plate_gaps_in_a_top_surface():
+    from ptb_ml.mesh_voxel.engine import _to_courses
+    # A ridge 6 studs long, 5 plates tall, but 4 plates in every 3rd column:
+    # its top course has 2 plates in most columns and 1 in the low ones
+    grid = np.zeros((1, 6, 6), bool)
+    grid[:, :5] = True
+    grid[:, 4, 1::3] = False
+    courses = _to_courses(grid)
+    assert courses[0, 1].all()                       # no one-stud holes
+    # A column standing alone with 1 plate in its top course is not filled
+    lone = np.zeros((3, 6, 3), bool)
+    lone[1, :4, 1] = True
+    assert _to_courses(lone)[1, :, 1].tolist() == [True, False]
+
+
 def test_open_bottom_falls_back_to_slices(tmp_path):
     # Remove the bottom faces: a house shell with no floor
     mesh = _box(10, 4, 10)

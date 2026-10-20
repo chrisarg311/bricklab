@@ -104,15 +104,17 @@ def _rank_colors(
 
 def _smooth_colors(
     color_idx: np.ndarray, occupancy: np.ndarray, n_colors: int, rounds: int,
-    top_max_same: int = 1,
+    visible_max_same: int = 2,
 ) -> np.ndarray:
     """Majority filter over each cell and its occupied neighbours (3x3x3,
     counted in brick courses), so speckles from textures and material seams
     don't split walls into many small parts.
 
-    Cells with open air above them (the roof and other top surfaces) only
-    change when they are strays, with at most `top_max_same` neighbours of
-    their own color; otherwise the wall below would outvote a thin roof.
+    Visible cells (seen from the sides or from above) only change when they
+    are strays, with at most `visible_max_same` neighbours of their own
+    color, so walls, roofs and trim keep their colors where they meet.
+    Hidden cells, such as the inner layer of a wall, take the majority
+    color, which only affects how they join into bricks.
     """
 
     X, Y, Z = occupancy.shape
@@ -120,15 +122,18 @@ def _smooth_colors(
         return color_idx
     occ = occupancy[:, ::3, :]
     lab = color_idx[:, ::3, :].copy()
-    air_above = np.concatenate([~occ[:, 1:], np.ones_like(occ[:, :1])], axis=1)
-    top = occ & air_above
+    visible = np.zeros_like(occ)
+    for axis, side in ((0, 1), (0, -1), (2, 1), (2, -1), (1, -1)):
+        o = np.flip(occ, axis) if side < 0 else occ
+        first = o & (np.cumsum(o, axis) == 1)        # first occupied cell from that side
+        visible |= np.flip(first, axis) if side < 0 else first
     for _ in range(rounds):
         counts = np.stack([
             np.rint(ndimage.uniform_filter(((lab == c) & occ).astype(np.float64), size=3, mode="constant") * 27)
             for c in range(n_colors)
         ])
         own = np.take_along_axis(counts, lab[None], 0)[0] - 1        # same-color neighbours
-        change = occ & np.where(top, own <= top_max_same, True)
+        change = occ & np.where(visible, own <= visible_max_same, True)
         lab = np.where(change, counts.argmax(0), lab)
     return np.repeat(lab, 3, axis=1)
 

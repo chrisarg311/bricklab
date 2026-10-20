@@ -272,13 +272,24 @@ def _hollow(
 
 def _to_courses(grid: np.ndarray) -> np.ndarray:
     """(X, Y plates, Z) -> (X, K courses, Z): a 3-plate course of a column
-    is filled when at least 2 of its plates are. Y is padded up to 3K."""
+    is filled when at least 2 of its plates are. Y is padded up to 3K.
+
+    A top course with only 1 plate is also filled when the course is filled
+    on both sides of it (along x or z) and below it, so a sloped surface
+    that lands a plate lower in some columns doesn't leave one-stud holes."""
 
     X, Y, Z = grid.shape
     K = -(-Y // 3)
     padded = np.zeros((X, K * 3, Z), dtype=bool)
     padded[:, :Y] = grid
-    return padded.reshape(X, K, 3, Z).sum(2) >= 2
+    plates = padded.reshape(X, K, 3, Z).sum(2)
+    courses = plates >= 2
+
+    side = np.pad(courses, ((1, 1), (0, 0), (1, 1)))
+    between = (side[:-2, :, 1:-1] & side[2:, :, 1:-1]) | (side[1:-1, :, :-2] & side[1:-1, :, 2:])
+    below = np.concatenate([np.ones_like(courses[:, :1]), courses[:, :-1]], axis=1)
+    above = np.concatenate([courses[:, 1:], np.zeros_like(courses[:, :1])], axis=1)
+    return courses | ((plates == 1) & between & below & ~above)
 
 
 def run_mesh_voxelization(
