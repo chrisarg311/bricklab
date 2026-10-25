@@ -3,8 +3,8 @@ import numpy as np
 
 
 
-# Subset of common LEGO colors (name, R, G, B)
-LEGO_COLORS: list[tuple[str, int, int, int]] = [
+# Subset of common brick colors (name, R, G, B)
+BRICK_COLORS: list[tuple[str, int, int, int]] = [
     ("White",           255, 255, 255),
     ("Light Bluish Gray", 160, 165, 169),
     ("Dark Bluish Gray", 99,  95,  98),
@@ -26,11 +26,11 @@ LEGO_COLORS: list[tuple[str, int, int, int]] = [
 ]
 
 _COLOR_ARRAY = np.array(
-    [(r, g, b) for _, r, g, b in LEGO_COLORS], dtype=np.float32
+    [(r, g, b) for _, r, g, b in BRICK_COLORS], dtype=np.float32
 )
 
 
-def snap_to_lego_color(
+def snap_to_brick_color(
         r: int,
         g: int,
         b: int
@@ -39,5 +39,5 @@ def snap_to_lego_color(
     query= np.array([r, g, b], dtype=np.float32)
     dists= np.linalg.norm(_COLOR_ARRAY - query, axis=1)
     idx= int(np.argmin(dists))
-    _, nr, ng, nb = LEGO_COLORS[idx]
+    _, nr, ng, nb = BRICK_COLORS[idx]
     return nr, ng, nb
