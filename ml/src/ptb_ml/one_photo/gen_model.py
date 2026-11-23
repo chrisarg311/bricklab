@@ -115,6 +115,8 @@ def gen_model(input_img: str | Path, output_model: str | Path) -> Path:
 
     # Save model
     model = trimesh.util.concatenate([body, roof, chimney])
+    # Built with Z up; glTF viewers expect Y up
+    model.apply_transform(trimesh.transformations.rotation_matrix(-np.pi / 2, [1, 0, 0]))
     output_model.parent.mkdir(parents=True, exist_ok=True)
     model.export(output_model)
 
