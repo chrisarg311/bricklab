@@ -16,6 +16,8 @@ def gen_model(
 
     # Load image
     img = Image.open(input_img).convert("RGBA")
+    # The pixel thresholds below were tuned on photos this size; larger ones are shrunk
+    img.thumbnail((600, 600))
     img_data = np.array(img)
 
     # Get house mask
@@ -43,6 +45,8 @@ def gen_model(
     points = simple_outline.reshape(-1, 2)
 
     # Find walls
+    rows = np.where(mask.any(axis=1))[0]
+    house_middle = (rows[0] + rows[-1]) / 2
     vertical_lines = []
 
     for i in range(len(points)):
@@ -52,21 +56,27 @@ def gen_model(
         width = abs(int(x2) - int(x1))
         height = abs(int(y2) - int(y1))
 
-        if width < 10 and height > 50:
+        # Sideways drift is relative to length so a slightly tilted photo still has walls;
+        # walls reach the lower half of the house, which rules out chimney sides
+        if width < 0.1 * height and height > 50 and max(y1, y2) > house_middle:
             vertical_lines.append((x1, y1, x2, y2, height))
 
-    vertical_lines.sort(key=lambda line: line[4], reverse=True)
-    walls = vertical_lines[:2]
+    if len(vertical_lines) < 2:
+        raise ValueError(f"Could not find both side walls in {input_img}")
 
-    # Find house body
-    left_wall = min(walls, key=lambda line: min(line[0], line[2]))
-    right_wall = max(walls, key=lambda line: max(line[0], line[2]))
+    # Find house body; the outermost lines are the walls
+    left_wall = min(vertical_lines, key=lambda line: min(line[0], line[2]))
+    right_wall = max(vertical_lines, key=lambda line: max(line[0], line[2]))
 
     left = int((left_wall[0] + left_wall[2]) / 2)
     right = int((right_wall[0] + right_wall[2]) / 2)
+    if right <= left:
+        raise ValueError(f"Could not find both side walls in {input_img}")
     wall_top = int((min(left_wall[1], left_wall[3]) + min(right_wall[1], right_wall[3])) / 2)
-    # The shorter wall's end, so ground clutter touching one wall can't pull the bottom down
-    bottom = int(min(max(left_wall[1], left_wall[3]), max(right_wall[1], right_wall[3])))
+    # Height from the shorter wall: clutter touching a wall only lengthens it, and a small
+    # tilt moves the wall ends but not their length
+    wall_height = min(abs(int(left_wall[3]) - int(left_wall[1])), abs(int(right_wall[3]) - int(right_wall[1])))
+    bottom = wall_top + wall_height
 
     # Find roof
     horizontal_lines = []
@@ -87,8 +97,8 @@ def gen_model(
         # No flat ridge (pointed or flat roof): the top is the first row above the walls that
         # spans a tenth of the house width, which skips a narrow chimney above the peak
         row_fill = (mask[:wall_top] > 0).sum(axis=1)
-        rows = np.where(row_fill >= 0.1 * (right - left))[0]
-        roof_top = int(rows[0]) if len(rows) else wall_top
+        roof_rows = np.where(row_fill >= 0.1 * (right - left))[0]
+        roof_top = int(roof_rows[0]) if len(roof_rows) else wall_top
 
     # Find chimney; optional, and specks above the roof don't count
     chimney_mask = mask[:max(roof_top - 10, 0), :]
