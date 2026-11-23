@@ -1,16 +1,16 @@
 from __future__ import annotations
 from dataclasses import dataclass
 
-LEGO_STUD_M= 0.008
-LEGO_PLATE_M= 0.0032
-LEGO_BRICK_M= 0.0096
+STUD_M= 0.008
+PLATE_M= 0.0032
+BRICK_M= 0.0096
 
 
 @dataclass(frozen=True)
 class VoxelizationSettings:
     ## Grid resolution
-    stud_size_m: float= LEGO_STUD_M
-    plate_size_m: float= LEGO_PLATE_M
+    stud_size_m: float= STUD_M
+    plate_size_m: float= PLATE_M
 
 
     ## Dimensions of the voxel grid 

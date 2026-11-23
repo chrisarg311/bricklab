@@ -239,7 +239,7 @@ def build_glb(
                 metallicFactor=0.05,
                 roughnessFactor=0.4,
             ),
-            name=f"lego_{r}_{g}_{b}",
+            name=f"brick_{r}_{g}_{b}",
         ))
 
         # Mesh

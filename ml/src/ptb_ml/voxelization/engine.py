@@ -30,12 +30,12 @@ def _load_tsdf(tsdf_path: Path) -> tuple[np.ndarray, np.ndarray, float]:
     return points, colors, voxel_len
 
 
-def _fit_to_lego_grid(
+def _fit_to_brick_grid(
         points: np.ndarray,
         colors: np.ndarray,
         settings: VoxelizationSettings,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """ Maps real world space points onto a lego stud/plate grid
+    """ Maps real world space points onto a stud/plate brick grid
     returns (grid_indicies, grid_colors, ?grid_normals?, origin)
     grid_indicies: (N,3) int array of (ix, iy, iz) vox coords
     """
@@ -158,8 +158,8 @@ def run_voxelization(
             error=f"No points found in {req.tsdf_path}",
         )
     
-    log.info("Mapping to LEGO grid")
-    grid_indicies, colors, origin= _fit_to_lego_grid(
+    log.info("Mapping to brick grid")
+    grid_indicies, colors, origin= _fit_to_brick_grid(
         points, colors, settings)
 
     grid_shape= (

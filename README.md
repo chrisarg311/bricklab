@@ -10,45 +10,40 @@ shopping list of bricks.
 
 ## What it does
 
-You upload a photo. We cut the subject out of its background, work out how tall/wide/deep it is, turn it
-into a 3D shape made of LEGO bricks in real LEGO colors, and hand you back a 3D model you can spin around,
-a step-by-step build manual, and a parts list you can actually buy.
+You upload a photo. We cut the subject out of its background, work out how tall/wide/deep it is, turn a photo of a building into a buildable brick model, with a parts list you can order and (coming next) step-by-step build instructions.
 
 ## How it works
 
 ```mermaid
 flowchart LR
-    IMG["📷 your photo"] --> SUB["1 · Cut out the subject<br/>backgroundremover / U²-Net"]
-    SUB --> DIM["2a · Measure it<br/>width × height × depth in studs"]
-    DIM --> REL["2b · Give it depth<br/>depth model sets how far each<br/>column sticks out"]
-    REL --> BRK["3a · Turn voxels into real bricks<br/>greedy merge into 2×4s, 1×2s…"]
-    BRK --> INS["3b · Colors + instructions<br/>snap to LEGO palette, build steps"]
-    INS --> OUT["🧱 3D model · manual · parts list"]
+    IMG["📷 your photo"] --> CUT["1 · Cut out the house<br/>background removal"]
+    CUT --> GEN["2 · Make a 3D model<br/>one photo → house .glb"]
+    GEN --> VOX["3 · Brick grid<br/>model → studs × plates"]
+    VOX --> OPT["4 · Fewest bricks<br/>optimizer, 20-shape catalog"]
+    OPT --> OUT["🧱 3D brick model · parts list · order total"]
 ```
 
 **In plain terms, one step at a time:**
 
-1. **Cut out the subject.** A background-removal model finds the building and erases everything else, so
-   the sky and the neighbor's car don't end up as bricks.
-2. **Measure it.** From the cut-out shape we work out proportions — how wide and tall it is — and convert
-   that into a stud count that fits the model size you picked (Small / Medium / Large).
-3. **Give it depth.** A depth-estimation model looks at the photo and estimates how far away each part of
-   the building is. A porch that sticks out becomes bricks that stick out. This is what makes the result a
-   *3D shape* rather than a flat pixel picture.
-4. **Turn it into real bricks.** The shape starts as a grid of 1×1 cubes. A placement algorithm merges
-   them into real LEGO pieces — 2×4s, 1×2s — the way you'd actually build it, staggering the seams so it
-   holds together.
-5. **Color and instruct.** Each brick gets the closest real LEGO color, and the model is sliced into
-   bottom-up build steps with a parts list.
+1. **Cut out the house.** Background removal erases everything except the building.
+2. **Make a 3D model.** From that one photo we generate a 3D model of the house (.glb).
+3. **Turn it into a brick grid.** The model is scaled to the size you pick (16, 20 or 24 studs wide) and cut
+   into a grid where each cell is one stud wide and one plate tall. Walls are kept hollow, the way a real
+   brick house is built.
+4. **Pick the fewest bricks.** An optimizer (OR-Tools CP-SAT) fills each layer with the fewest bricks from a
+   fixed 20-shape catalog, staggering joints so the walls hold together. Bricks come in white, black and red,
+   on one green base plate.
+5. **Parts list and price.** Every part is matched to its store ID, so the list can be ordered part by part
+   and priced.
 
 ## Project status
 
 | Cycle | Goal | Status |
 |:--|:--|:--|
 | **0** | Repo foundation — import previous team's work, document it, set up docs & licensing | ✅ **Done** |
-| **1** | Subject isolation + background removal | ⬜ Not started |
-| **2** | 2D → dimensions → bas-relief 3D model | ⬜ Not started |
-| **3** | Color refinement, brick stability, instructions + parts list | ⬜ Not started |
+| **1** | Subject isolation + background removal | ✅ **Done and in review** |
+| **2** | 2D → dimensions → bas-relief 3D model | ✅ **Done** |
+| **3** | Color refinement, brick stability, instructions + parts list | ⬜ Started the parts list |
 
 **Non-functional targets:** end-to-end generation in **≤ 300 seconds**; models buildable from a
 **limited brick palette** with a configurable piece-count budget (minimum ~20 pieces).
@@ -72,13 +67,17 @@ bricklab/
 │   └── public/                    landing images, demo GLTF
 │
 ├── ml/                          Python · FastAPI · Celery
+│   ├── scripts/glb_to_bricks.py   compare catalogs on a .glb
 │   ├── app.py                     HTTP endpoints
 │   ├── tasks.py                   Celery background jobs
 │   ├── mosaic_engine.py           LEGO palette · dithering · depth-aware quantize
 │   ├── main.py                    CLI entrypoint
 │   ├── db.py · storage.py · auth.py
 │   └── src/ptb_ml/
-│       ├── brickification/        ✅ voxels → real bricks + BOM     REUSED
+│       ├── one_photo/             🆕 photo → 3D house model (.glb)          PR #3
+│       ├── mesh_voxel/            🆕 3D model → stud/plate brick grid       PR #4
+│       ├── brick_optimizer/       🆕 brick grid → fewest bricks + parts list PR #4
+│       ├── brickification/        ◐  old greedy brick placer (kept for comparison)
 │       ├── instructions/          ✅ GLB + build steps              REUSED
 │       ├── voxelization/          ◐  LEGO grid fitting (settings reused, loader bypassed)
 │       ├── preprocess/            💤 frame extraction, masking
@@ -87,7 +86,7 @@ bricklab/
 │       ├── shape_completion/      💤 Open3D TSDF fusion
 │       └── pipeline/              💤 orchestrates the dormant chain
 │
-├── docs/                        PREVIOUS_TEAM · DECISIONS · THIRD_PARTY
+├── docs/                        PREVIOUS_TEAM · DECISIONS · THIRD_PARTY · BRICK_CATALOG
 ├── compose.yaml                 frontend + fastapi + worker + postgres + redis
 └── LICENSE                      placeholder — see docs/THIRD_PARTY.md
 ```
@@ -118,12 +117,13 @@ flowchart TB
         T["tasks.py<br/>Celery"]
     end
     subgraph M["📦 pipeline — ml/src/ptb_ml/"]
-        S["subject/<br/>Cycle 1 — new"]
-        D["dimensions/ + relief/<br/>Cycle 2 — new"]
-        BR["brickification/<br/>reused"]
-        IN["instructions/<br/>reused"]
+        S["one_photo/<br/>PR #3"]
+        V["mesh_voxel/<br/>PR #4"]
+        BO["brick_optimizer/<br/>PR #4"]
+        IN["instructions/<br/>reused, Cycle 3"]
+    ...
+    T -.planned.-> S --> V --> BO --> IN
     end
-    ME["ml/mosaic_engine.py<br/>palette + depth"]
 
     MW -.guards.-> P1
     P1 --> L
@@ -142,8 +142,7 @@ flowchart TB
 **Reading it:** `create-3d` calls a typed function in `lib/api.ts`, which hits a Next
 proxy route, which forwards to `ml/app.py`. Long work is handed to a Celery task that
 walks the pipeline modules left to right. The two new Cycle 1–2 modules feed the two
-modules we inherited unchanged. `mosaic_engine.py` is shared by both new stages — it
-owns the LEGO palette and the depth model.
+modules we inherited unchanged. After PR #3 and PR #4 are merged, the task will run them in order.
 
 ## Running it
 
@@ -200,6 +199,14 @@ Starts in seconds with hot reload. **Anything calling the ML service will not wo
 background removal, 3D generation, the depth viewer. Those need Method 1, or at
 minimum the FastAPI container on port 8000.
 
+### Method 3: brick step only (no Docker)
+
+**Needs:** Python 3.11+ with the `ml` dependencies. Turns any house `.glb` into bricks and a parts list:
+
+    PYTHONPATH=ml/src python ml/scripts/glb_to_bricks.py house.glb --studs 16 --hollow 2 --catalog optimized-20
+
+Writes `bricks.npz`, `bom.json` (parts, store IDs, order total) and `report.json`.
+
 ### Previous team's deployment
 
 <https://main.d2hnowa3ob8fvm.amplifyapp.com/> — a visual reference for the inherited
@@ -215,6 +222,7 @@ entirely in the browser.
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Running log of technical decisions and why we made them |
 | [`docs/THIRD_PARTY.md`](docs/THIRD_PARTY.md) | Open-source licenses — **read before adding a dependency or swapping a model** |
 | [`HANDOFF_NOTES.md`](HANDOFF_NOTES.md) | The previous team's own handoff notes (kept verbatim) |
+| [`docs/BRICK_CATALOG.md`](docs/BRICK_CATALOG.md) | The 20 brick shapes, colors, store IDs and how often each is used |
 
 ## Credits
 
