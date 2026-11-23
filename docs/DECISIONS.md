@@ -88,18 +88,23 @@ adding real multi-view depth later is an implementation change, not an interface
 
 ---
 
-## D7 — Background removal via `backgroundremover`
-**Date:** 2026-09-07 · **Status:** Active — pending bake-off
+## D7 — Background removal via `rembg` with the `u2net` model
+**Date:** 2026-11-22 (replaces the 2026-09-07 choice of `backgroundremover`) · **Status:** Active
 
-Chose [`nadermx/backgroundremover`](https://github.com/nadermx/backgroundremover) over `rembg`.
+`ml/src/ptb_ml/one_photo/bg_remover.py` uses [`rembg`](https://github.com/danielgatis/rembg) 2.0.69 and
+always names the model: `new_session("u2net")`.
 
-**Why:** code MIT / models Apache-2.0 (both commercial-safe), and it is **PyTorch-based**, reusing the
-`torch` already pinned in `ml/pyproject.toml` instead of pulling in `onnxruntime` as an extra heavy
-dependency. Its `u2net_human_seg` model also covers the sponsor's portrait style.
+**Why rembg:** the one-photo module (PR #3) was built on it and works; `backgroundremover` was never
+integrated. Code MIT, `u2net` weights Apache-2.0.
 
-**Open task (tester role, report §5):** benchmark `backgroundremover` (`u2netp`, `u2net`) against `rembg`
-on ~10 sample building photos for edge quality and seconds-per-image on CPU. Record the result here. The
-Cycle 1 wrapper puts the model name in settings, so switching is a one-line change.
+**Why name the model:** rembg's default depends on its version. From 2.0.80 it is `bria-rmbg` (RMBG-2.0),
+which is **CC-BY-NC-4.0**, a 1 GB download and ~60 s per photo on CPU. `u2net` takes ~2 s.
+
+**Why 2.0.69:** the newest rembg that still allows `numpy<2`; 2.0.70+ needs numpy 2, which the pinned
+torch can't use.
+
+**Known limit:** `u2net` keeps attached ground clutter (paths, steps, bushes) and can erase a thin, pale
+chimney. `gen_model.py` cleans the mask for the clutter; a lost chimney means the model has none.
 
 ---
 

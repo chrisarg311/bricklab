@@ -30,7 +30,10 @@ Verified 2026-09-07.
 
 | Component | Used for | Code license | Weights license | Commercial? |
 |---|---|---|---|---|
-| [`backgroundremover`](https://github.com/nadermx/backgroundremover) | Cycle 1 subject cut-out | MIT | Apache-2.0 | ✅ |
+| [`rembg`](https://github.com/danielgatis/rembg) + `u2net` | Background removal (`one_photo`, see D7) | MIT | Apache-2.0 | ✅ |
+| `rembg`'s `bria-rmbg` (RMBG-2.0) | *(not used — rembg's default from 2.0.80)* | — | **CC-BY-NC-4.0** | ❌ 🚫 |
+| onnxruntime | Runs the `u2net` model | MIT | — | ✅ |
+| trimesh | Builds and voxelizes 3D models | MIT | — | ✅ |
 | [`Depth-Anything-V2-Small-hf`](https://huggingface.co/depth-anything/Depth-Anything-V2-Small-hf) | Depth estimation | Apache-2.0 | **Apache-2.0** | ✅ |
 | `Depth-Anything-V2-Base` / `-Large` | *(not used)* | — | **CC-BY-NC-4.0** | ❌ 🚫 |
 | [`TripoSR`](https://github.com/VAST-AI-Research/TripoSR) | *(deferred — see D4)* | MIT | MIT | ✅ |
@@ -50,6 +53,8 @@ Verified 2026-09-07.
 2. **Never re-add `ml/vendor/DSINE/`.** Its license forbids commercial use outright. It is in `.gitignore`.
    See D9.
 3. **Never `pip install brickalize` or copy its code.** GPLv3. Read it for ideas only, clean-room. See D5.
+4. **Never call rembg without naming the model.** Its default became the non-commercial `bria-rmbg` in
+   2.0.80, so an upgrade would switch models silently. Always `new_session("u2net")`. See D7.
 
 ---
 

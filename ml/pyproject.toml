@@ -12,6 +12,8 @@ dependencies = [
     # preprocessing engine deps (Milestone 1)
     "pillow>=10",
     "opencv-python-headless>=4.8",
+    # background removal (one_photo); 2.0.70+ requires numpy 2
+    "rembg[cpu]==2.0.69",
     "imagehash>=4.3",
     "pydantic>=2,<3",
     "pillow-heif>=1.2.1",
