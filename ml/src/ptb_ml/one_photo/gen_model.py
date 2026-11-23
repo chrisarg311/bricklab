@@ -5,7 +5,11 @@ import cv2
 import trimesh
 
 
-def gen_model(input_img: str | Path, output_model: str | Path) -> Path:
+def gen_model(
+    input_img: str | Path,
+    output_model: str | Path,
+    debug_img: str | Path | None = None,
+) -> Path:
     input_img = Path(input_img)
     output_model = Path(output_model)
 
@@ -17,7 +21,16 @@ def gen_model(input_img: str | Path, output_model: str | Path) -> Path:
     alpha = img_data[:, :, 3]
     if (alpha < 255).mean() < 0.01:
         raise ValueError(f"No transparent background in {input_img}; run bg_remover first")
-    mask = (alpha > 0).astype(np.uint8) * 255
+
+    # A pixel is house when at least half visible. The opening cuts thin attachments
+    # such as paths and railings, then only the largest piece is kept.
+    mask = (alpha > 127).astype(np.uint8) * 255
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
+    if count < 2:
+        raise ValueError(f"No house found in {input_img}")
+    biggest = 1 + np.argmax(stats[1:, cv2.CC_STAT_AREA])
+    mask = np.where(labels == biggest, 255, 0).astype(np.uint8)
 
     # Find house outline
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -51,7 +64,8 @@ def gen_model(input_img: str | Path, output_model: str | Path) -> Path:
     left = int((left_wall[0] + left_wall[2]) / 2)
     right = int((right_wall[0] + right_wall[2]) / 2)
     wall_top = int((min(left_wall[1], left_wall[3]) + min(right_wall[1], right_wall[3])) / 2)
-    bottom = int((max(left_wall[1], left_wall[3]) + max(right_wall[1], right_wall[3])) / 2)
+    # The shorter wall's end, so ground clutter touching one wall can't pull the bottom down
+    bottom = int(min(max(left_wall[1], left_wall[3]), max(right_wall[1], right_wall[3])))
 
     # Find roof
     horizontal_lines = []
@@ -72,15 +86,26 @@ def gen_model(input_img: str | Path, output_model: str | Path) -> Path:
     roof_left = int(min(min(line[0], line[2]) for line in roof_lines))
     roof_right = int(max(max(line[0], line[2]) for line in roof_lines))
 
-    # Find chimney
-    chimney_mask = mask[:roof_top - 10, :]
+    # Find chimney; optional, and specks above the roof don't count
+    chimney_mask = mask[:max(roof_top - 10, 0), :]
     chimney_contours, _ = cv2.findContours(chimney_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    chimney = max(chimney_contours, key=cv2.contourArea)
-    x, y, w, h = cv2.boundingRect(chimney)
+    chimney_contours = [c for c in chimney_contours if cv2.contourArea(c) > 0.001 * mask.size]
 
-    chimney_left = x
-    chimney_right = x + w
-    chimney_top = y
+    chimney_box = None
+    if chimney_contours:
+        x, y, w, h = cv2.boundingRect(max(chimney_contours, key=cv2.contourArea))
+        chimney_left = x
+        chimney_right = x + w
+        chimney_top = y
+        chimney_box = (chimney_left, chimney_top, chimney_right, roof_top)
+
+    if debug_img is not None:
+        dbg = cv2.cvtColor(img_data, cv2.COLOR_RGBA2BGR)
+        cv2.rectangle(dbg, (left, wall_top), (right, bottom), (0, 200, 0), 2)
+        cv2.line(dbg, (left, roof_top), (right, roof_top), (255, 120, 0), 2)
+        if chimney_box:
+            cv2.rectangle(dbg, chimney_box[:2], chimney_box[2:], (0, 0, 255), 2)
+        cv2.imwrite(str(debug_img), dbg)
 
     # Create 3D body
     model_width = 10
@@ -103,18 +128,22 @@ def gen_model(input_img: str | Path, output_model: str | Path) -> Path:
     roof = trimesh.Trimesh(vertices=vertices, faces=faces)
     roof.apply_translation([0, 0, body_height / 2])
 
-    # Create chimney
-    chimney_width = (chimney_right - chimney_left) * scale
-    chimney_height = (roof_top - chimney_top) * scale
-    chimney_depth = 0.8
-    chimney_center_x = (((chimney_left + chimney_right) / 2) - ((left + right) / 2)) * scale
+    parts = [body, roof]
 
-    chimney = trimesh.creation.box(extents=[chimney_width, chimney_depth, chimney_height])
-    chimney_z = body_height / 2 + roof_height + chimney_height / 2 - 0.5
-    chimney.apply_translation([chimney_center_x, 0, chimney_z])
+    # Create chimney
+    if chimney_box:
+        chimney_width = (chimney_right - chimney_left) * scale
+        chimney_height = (roof_top - chimney_top) * scale
+        chimney_depth = 0.8
+        chimney_center_x = (((chimney_left + chimney_right) / 2) - ((left + right) / 2)) * scale
+
+        chimney = trimesh.creation.box(extents=[chimney_width, chimney_depth, chimney_height])
+        chimney_z = body_height / 2 + roof_height + chimney_height / 2 - 0.5
+        chimney.apply_translation([chimney_center_x, 0, chimney_z])
+        parts.append(chimney)
 
     # Save model
-    model = trimesh.util.concatenate([body, roof, chimney])
+    model = trimesh.util.concatenate(parts)
     # Built with Z up; glTF viewers expect Y up
     model.apply_transform(trimesh.transformations.rotation_matrix(-np.pi / 2, [1, 0, 0]))
     output_model.parent.mkdir(parents=True, exist_ok=True)
