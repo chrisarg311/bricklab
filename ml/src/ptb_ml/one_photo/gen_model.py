@@ -8,6 +8,7 @@ import trimesh
 def gen_model(
     input_img: str | Path,
     output_model: str | Path,
+    depth_ratio: float = 0.6,
     debug_img: str | Path | None = None,
 ) -> Path:
     input_img = Path(input_img)
@@ -80,11 +81,14 @@ def gen_model(
         if height < 10 and width > 50 and y1 < wall_top:
             horizontal_lines.append((x1, y1, x2, y2, width))
 
-    roof_top = min(int((line[1] + line[3]) / 2) for line in horizontal_lines)
-    roof_lines = [line for line in horizontal_lines if abs(((line[1] + line[3]) / 2) - roof_top) < 5]
-
-    roof_left = int(min(min(line[0], line[2]) for line in roof_lines))
-    roof_right = int(max(max(line[0], line[2]) for line in roof_lines))
+    if horizontal_lines:
+        roof_top = min(int((line[1] + line[3]) / 2) for line in horizontal_lines)
+    else:
+        # No flat ridge (pointed or flat roof): the top is the first row above the walls that
+        # spans a tenth of the house width, which skips a narrow chimney above the peak
+        row_fill = (mask[:wall_top] > 0).sum(axis=1)
+        rows = np.where(row_fill >= 0.1 * (right - left))[0]
+        roof_top = int(rows[0]) if len(rows) else wall_top
 
     # Find chimney; optional, and specks above the roof don't count
     chimney_mask = mask[:max(roof_top - 10, 0), :]
@@ -113,22 +117,26 @@ def gen_model(
 
     body_width = (right - left) * scale
     body_height = (bottom - wall_top) * scale
-    body_depth = 6
+    # A front photo shows no depth, so it is a ratio of the width until a side photo gives it
+    body_depth = body_width * depth_ratio
 
     body = trimesh.creation.box(extents=[body_width, body_depth, body_height])
+    parts = [body]
 
-    # Create roof
-    roof_width = body_width + 0.8
-    roof_height = 1.5
-    roof_depth = body_depth + 0.5
+    # Create roof; one lower than 5% of the walls is a flat roof
+    roof_height = (wall_top - roof_top) * scale
+    if roof_height < 0.05 * body_height:
+        roof_height = 0
+    else:
+        roof_width = body_width + 0.8
+        roof_depth = body_depth + 0.5
 
-    vertices = np.array([[-roof_width / 2, -roof_depth / 2, 0], [roof_width / 2, -roof_depth / 2, 0], [-roof_width / 2, roof_depth / 2, 0], [roof_width / 2, roof_depth / 2, 0], [-roof_width / 2, 0, roof_height], [roof_width / 2, 0, roof_height]])
-    faces = np.array([[0, 1, 5], [0, 5, 4], [2, 4, 5], [2, 5, 3], [0, 4, 2], [1, 3, 5], [0, 2, 1], [1, 2, 3]])
+        vertices = np.array([[-roof_width / 2, -roof_depth / 2, 0], [roof_width / 2, -roof_depth / 2, 0], [-roof_width / 2, roof_depth / 2, 0], [roof_width / 2, roof_depth / 2, 0], [-roof_width / 2, 0, roof_height], [roof_width / 2, 0, roof_height]])
+        faces = np.array([[0, 1, 5], [0, 5, 4], [2, 4, 5], [2, 5, 3], [0, 4, 2], [1, 3, 5], [0, 2, 1], [1, 2, 3]])
 
-    roof = trimesh.Trimesh(vertices=vertices, faces=faces)
-    roof.apply_translation([0, 0, body_height / 2])
-
-    parts = [body, roof]
+        roof = trimesh.Trimesh(vertices=vertices, faces=faces)
+        roof.apply_translation([0, 0, body_height / 2])
+        parts.append(roof)
 
     # Create chimney
     if chimney_box:
