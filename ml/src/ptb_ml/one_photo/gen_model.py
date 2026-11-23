@@ -15,6 +15,8 @@ def gen_model(input_img: str | Path, output_model: str | Path) -> Path:
 
     # Get house mask
     alpha = img_data[:, :, 3]
+    if (alpha < 255).mean() < 0.01:
+        raise ValueError(f"No transparent background in {input_img}; run bg_remover first")
     mask = (alpha > 0).astype(np.uint8) * 255
 
     # Find house outline
