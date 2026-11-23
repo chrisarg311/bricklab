@@ -29,6 +29,3 @@ def remove_background(input_img: str | Path, output_img: str | Path) -> Path:
     result.save(output_img, "PNG")
 
     return output_img
-
-if __name__ == "__main__":
-    remove_background("test_image.jpg", "test_image_no_bg.png")
